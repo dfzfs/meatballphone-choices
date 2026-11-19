@@ -394,7 +394,9 @@ document.addEventListener('click', (e) => {
     const set = settings();
     const st = set.danger ? curStage() : 0;
     const r = rng(`roll:${ctx().chatId ?? ''}:${i}:${n}`)();
-    const ok = it.trait === 'risk' ? r < (0.6 - st * 0.1) : true;
+    // 🍀 미트볼 라이트의 오늘 운세와 맞으면 +10% · 조심할 행동이면 −10%
+    let fit = 0; try { fit = globalThis.MeatballLite?.luck?.(it.label)?.fit ?? 0; } catch { fit = 0; }
+    const ok = it.trait === 'risk' ? r < (0.6 - st * 0.1 + fit * 0.1) : true;
     meta().pending = { i, n, trait: it.trait, label: it.label, ok };
     ctx().saveMetadataDebounced?.() ?? ctx().saveMetadata?.();
     insertInput(it.label, set.click === 'send');
