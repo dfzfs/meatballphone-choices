@@ -6,7 +6,7 @@ const ET = Object.fromEntries(['APP_READY', 'GENERATION_STARTED', 'GENERATION_AF
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
 const ST = {
-    chat: [], chatId: 'c1', chatMetadata: {}, extensionSettings: {}, extensionPrompts: {},
+    chat: [], chatId: 'c1', chatMetadata: {}, extensionSettings: { mbChoices: { _v: 3, gen: new URLSearchParams(location.search).get('gen') ?? 'auto' } }, extensionPrompts: {}, // 시험은 기본 「매 답」 · gen=ask로 「눌러서」
     sent: [], // 실제로 보낸 프롬프트 기록 { type, text }
     saves: [], streaming: false, marks: [], dirty: new Set(), // 저장 시험용 · 다시 그릴 메시지
     mode: Q.get('mode') === 'text' ? 'text' : 'chat',
@@ -43,7 +43,7 @@ if (Q.get('lite') === '1') window.MeatballLite = {
     scene: () => ({ goods: [{ name: '컵라면', price: 1500 }], people: [{ name: '서하', want: '오늘 밤 안에 연구실을 확인하고 싶다' }] }),
     paused: () => false,
     ...(Q.get('lmode') ? { mode: () => Q.get('lmode') } : {}), // 없으면 A로 봄
-    ...(Q.get('pend') ? { pendingChoice: (x) => { (ST.pending ??= []).push(x); } } : {}),
+    ...(Q.get('pend') ? { pendingChoice: (i, x) => { (ST.pending ??= []).push({ ...x, mesId: i }); } /* 라이트와 같은 모양: (사용자 메시지 번호, 기록) */ } : {}),
 };
 
 function fmt(t) { return String(t ?? '').replace(/<meatball>[\s\S]*?<\/meatball>/g, '').replace(/<\/?choices>/g, '').split(/\n\n+/).map(p => `<p>${p.trim().replace(/\n/g, '<br>')}</p>`).join(''); }

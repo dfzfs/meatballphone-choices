@@ -15,6 +15,9 @@ export const DEFAULTS = Object.freeze({
     click: 'fill',       // fill · send
     input: 'raw',        // raw = 원문(번역 전) · shown = 화면 글
     depth: 1,
+    gen: 'ask',          // ask = 눌러야 받음 (본편에 선택지 지시를 안 넣음 · 누를 때 AI 1회) · auto = 매 답마다 본편이 같이 씀
+    sideX: 'auto',       // 옆 동그라미 가로 자리: auto · right · left
+    sideY: 'msg',        // 세로 자리: msg(마지막 답 옆) · top · middle · bottom
     view: 'list',        // list = 답 밑 목록 · side = 채팅 옆 「?」 동그라미 → 올리면 부채꼴 (좁은 화면은 목록)
     kinds: Object.fromEntries(KINDS.map(k => [k.id, true])),
     risks: Object.fromEntries(RISKS.map(r => [r.id, !r.off])), // 함정은 기본 끔

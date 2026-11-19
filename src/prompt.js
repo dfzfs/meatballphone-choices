@@ -59,6 +59,7 @@ export function buildPrompt(seed, pending) {
     const L = [];
     const res = resultText(pending);
     if (res) L.push(res);
+    if (set.gen !== 'auto') return L.join('\n'); // 눌러야 받는 모드: 본편엔 고른 결과 지시만 (선택지 지시 없음)
     L.push(`[CHOICES] End your reply${liteMode() === 'B' ? '' : ' (before any <meatball> block)'} with exactly ${plan.length} options for {{user}}'s next action inside <choices>…</choices>, written in the same language as the story, one per line: [kind|risk] option text.`);
     L.push(`Risks in this order: ${plan.map(r => `[${r}]`).join(' ')}. For each line pick the kind that best fits the moment.`);
     L.push('Kinds: ' + kindsOn().map(k => `${k.id} = ${k.ai}`).join('; ') + '.');
@@ -71,7 +72,7 @@ export function buildPrompt(seed, pending) {
 export function setInject(text) {
     try { ctx().setExtensionPrompt(INJECT_KEY, text ?? '', 1, clamp(Number(settings().depth) || 0, 0, 10), false, 0); } catch (e) { console.warn('[미트볼 선택지]', e); }
 }
-export const injectTokens = () => Math.round(buildPrompt(userCount() + 1, null).length / 3.2);
+export const injectTokens = () => Math.round(buildPrompt(userCount() + 1, null).length / 3.2); // 눌러야 받는 모드면 0
 export const sceneTokens = () => Math.round(sceneLine().length / 3.2);
 
 // 결과 지시는 「고른 바로 다음 답」 한 번에만: 만들 답 바로 앞 메시지가 고른 기록이 있는 내 메시지일 때
