@@ -362,3 +362,24 @@ body.mbc-fx-tilt #chat { transform: rotate(calc(.35deg * var(--mbc-k, 1))); }
 .mbc-sidecard .mbc-d-txt b { font-size: 12.5px; } .mbc-sidecard .mbc-d-txt small { font-size: 11px; }
 .mbc-sidecard .mbc-go { min-height: 34px; padding: 4px 16px; font-size: 12.5px; }
 .mbc-sidecard .mbc-rr-in { min-height: 34px; font-size: 12px; }
+
+/* ───── 설정 판 (채팅 옆 · 팝업 아님) ───── */
+#mbc-editdock {
+    position: fixed; z-index: 3100; display: flex; flex-direction: column; overflow: hidden;
+    border-radius: 16px; border: 1px solid color-mix(in srgb, var(--SmartThemeBodyColor, #e6e4df) 16%, transparent);
+    background: var(--edbg, #23252b); color: var(--SmartThemeBodyColor, #e6e4df); box-shadow: 0 16px 48px rgba(0, 0, 0, .45);
+    font-size: 14px; animation: mbc-up .2s;
+}
+#mbc-editdock[data-pos="sheet"] { left: 0; right: 0; bottom: 0; max-height: 72vh; border-radius: 16px 16px 0 0; }
+.mbc-ed-top { display: flex; align-items: center; gap: 8px; padding: 12px 12px 8px 16px; }
+.mbc-ed-top b { font-size: 15px; } .mbc-ed-top small { flex: 1; font-size: 11px; opacity: .6; }
+#mbc-editdock .mbc-editor { --bg0: var(--edbg, #23252b); display: flex; flex-direction: column; min-height: 0; flex: 1; padding: 0 12px 12px; }
+#mbc-editdock .mbc-tabs { background: var(--edbg, #23252b); flex: none; }
+#mbc-editdock .mbc-tabbody { overflow: auto; flex: 1; min-height: 0; padding-bottom: 12px; }
+#mbc-editdock .mbc-row .ctl { max-width: 62%; }
+#mbc-editdock .mbc-seg button { padding: 2px 8px; font-size: 12px; }
+
+/* 카드: 옆으로 넘기지 않고 줄 바꿈 (뒤 카드가 안 보이던 것) */
+.mbc-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); overflow: visible; scroll-snap-type: none; padding: 4px 0 0; gap: 8px; }
+.mbc-opt.card { flex: none; min-height: 132px; padding: 10px; gap: 6px; }
+.mbc-opt.card .mbc-kind .ic { font-size: 1.5em; }

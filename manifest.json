@@ -7,7 +7,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "dfzfs",
-    "version": "0.3.2",
+    "version": "0.3.3",
     "homePage": "https://github.com/dfzfs/meatball-lite-choices",
     "auto_update": true
 }
