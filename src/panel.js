@@ -130,7 +130,9 @@ export async function choose(i, n) {
     const check = ch ? rollCheck(ch, `${seedOf(i, n)}:${userCount()}`) : null;
     if (check && panel) await rollAnim(panel, check);
     const label = set.input === 'shown' ? it.label : (it.orig ?? it.label);
-    const p = { n, kind: it.kind, risk: it.risk, label, shown: it.label, check };
+    // 고른 기록 (mbc) — 미트볼 라이트 분류 모델이 읽는 약속. 필드는 README 표 참고
+    const outcome = check ? (check.crit ? 'crit' : check.fumble ? 'fumble' : check.ok ? 'success' : 'fail') : null;
+    const p = { v: 1, n, kind: it.kind, risk: it.risk, label, shown: it.label, check, outcome, trap: it.risk === 'trap', price: it.risk === 'price' };
     meta().pending = p; saveMeta();
     ui.sel = null; ui.reroll = false;
     insertInput(label, set.click === 'send');

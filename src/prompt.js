@@ -1,5 +1,5 @@
 // 본편 주입 · 답에서 선택지 읽기 · 지난 선택지 옮기기 · 다시 받기 글
-import { settings, ctx, rng, pickW, kindOf, riskOf, kindsOn, risksOn, clamp, meta, userCount, lite, liteState, liteLuck, liteScene, setExtra } from './core.js';
+import { settings, ctx, rng, pickW, kindOf, riskOf, kindsOn, risksOn, clamp, meta, userCount, lite, liteState, liteLuck, liteScene, liteMode, setExtra } from './core.js';
 import { RESULT } from './data.js';
 import * as DATA from './data.js';
 
@@ -44,9 +44,11 @@ function resultText(p) {
     }
     if (rk.id === 'price') L.push(RESULT.price);
     if (rk.id === 'trap') L.push(RESULT.trap);
-    if (k?.res) L.push(k.res);
+    const B = liteMode() === 'B';
+    if (k?.res && !B) L.push(k.res);
     if (L.length === 1) return '';
-    L.push(lite() ? 'Record what actually happens as event lines in your <meatball> block — events, not numbers.' : '');
+    // A: 본편이 사건 줄을 씀 · B: 분류 모델이 고른 기록(mbc)을 읽어 사건을 고름 → 이야기로만 보여 주게
+    L.push(B ? 'Show the outcome clearly in the story itself.' : lite() ? 'Record what actually happens as event lines in your <meatball> block — events, not numbers.' : '');
     return L.filter(Boolean).join(' ');
 }
 
@@ -57,7 +59,7 @@ export function buildPrompt(seed, pending) {
     const L = [];
     const res = resultText(pending);
     if (res) L.push(res);
-    L.push(`[CHOICES] End your reply (before any <meatball> block) with exactly ${plan.length} options for {{user}}'s next action inside <choices>…</choices>, written in the same language as the story, one per line: [kind|risk] option text.`);
+    L.push(`[CHOICES] End your reply${liteMode() === 'B' ? '' : ' (before any <meatball> block)'} with exactly ${plan.length} options for {{user}}'s next action inside <choices>…</choices>, written in the same language as the story, one per line: [kind|risk] option text.`);
     L.push(`Risks in this order: ${plan.map(r => `[${r}]`).join(' ')}. For each line pick the kind that best fits the moment.`);
     L.push('Kinds: ' + kindsOn().map(k => `${k.id} = ${k.ai}`).join('; ') + '.');
     const usedR = [...new Set(plan)].map(riskOf).filter(r => r.id !== 'none');

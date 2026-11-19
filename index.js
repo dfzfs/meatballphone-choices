@@ -1,6 +1,6 @@
 // 미트볼 선택지 — 답 끝의 선택지를 고르기 쉬운 목록으로. 미트볼 라이트 칩 위에 붙는다.
 // 저장: 선택지 블록은 그 AI 메시지(스와이프마다) extra · 고른 기록은 그다음 사용자 메시지 extra. 따로 쌓는 기록 없음.
-import { settings, ctx, meta, saveMeta, userCount, LOG, liteClear, setExtra } from './src/core.js';
+import { settings, ctx, meta, saveMeta, userCount, LOG, liteClear, setExtra, lite } from './src/core.js';
 import { onBeforeGen, setInject, buildPrompt, stripOld, tuck } from './src/prompt.js';
 import { decorate, lastAIIndex, ui, choose, helpSheet, reroll, branchHere, dropSide, placeSide } from './src/panel.js';
 import { fetchGuide, guideItems, gst } from './src/guide.js';
@@ -36,7 +36,10 @@ function onSent(idx) {
     if (!m?.is_user) return;
     const p = md.pending;
     const txt = `${m.mes}\n${m.extra?.display_text ?? ''}`;
-    if (p && (txt.includes(p.label.slice(0, 8)) || (p.shown && txt.includes(p.shown.slice(0, 8))))) setExtra(m, { mbc: p });
+    if (p && (txt.includes(p.label.slice(0, 8)) || (p.shown && txt.includes(p.shown.slice(0, 8))))) {
+        setExtra(m, { mbc: p }); // 늘 남김 (칩 · 분기 · 라이트 분류 모델이 읽음)
+        const L = lite(); if (typeof L?.pendingChoice === 'function') { try { L.pendingChoice({ ...p, mesId: i }); } catch (e) { console.warn(LOG, e); } } // 라이트에 받는 자리가 있으면 거기에도
+    }
     md.pending = null; saveMeta();
     if (tuckBefore(i)) saveChat();
     setInject(buildPrompt(userCount(), m.extra?.mbc ?? null));

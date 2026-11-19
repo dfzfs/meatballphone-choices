@@ -37,6 +37,8 @@ if (Q.get('lite') === '1') window.MeatballLite = {
     luck: (l = '') => ({ rolled: true, stars: 4, tier: '', text: '★★★★☆ 먼저 말을 걸면 좋은 날', good: 'talk', bad: 'fight', fit: /말|노크|Knock/.test(l) ? 1 : 0 }),
     scene: () => ({ goods: [{ name: '컵라면', price: 1500 }], people: [{ name: '서하', want: '오늘 밤 안에 연구실을 확인하고 싶다' }] }),
     paused: () => false,
+    ...(Q.get('lmode') ? { mode: () => Q.get('lmode') } : {}), // 없으면 A로 봄
+    ...(Q.get('pend') ? { pendingChoice: (x) => { (ST.pending ??= []).push(x); } } : {}),
 };
 
 function fmt(t) { return String(t ?? '').replace(/<meatball>[\s\S]*?<\/meatball>/g, '').replace(/<\/?choices>/g, '').split(/\n\n+/).map(p => `<p>${p.trim().replace(/\n/g, '<br>')}</p>`).join(''); }
