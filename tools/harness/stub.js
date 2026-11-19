@@ -28,7 +28,7 @@ const ctxObj = {
     updateMessageBlock: (i) => { ST.dirty.add(Number(i)); render(); },
     executeSlashCommandsWithOptions: async (cmd) => { const m = cmd.match(/branch-create (\d+)/); if (m) await T.branch(Number(m[1])); },
     generateQuietPrompt: async ({ quietPrompt }) => { ST.quiet = quietPrompt; ST.quietN = (ST.quietN ?? 0) + 1;
-        if (/<route>|<facts>|<spoil>/.test(quietPrompt)) return '<route>\n- 서하와 비밀을 나눈다 | 둘 사이가 가까워짐\n- 경비원에게 들킨다 | 긴장감\n</route>\n<facts>\n- 연구실 문은 오른쪽에 있다\n- 서하는 우산을 두고 왔다\n</facts>\n<spoil>\n- 문을 연다 => 푸른 빛의 정체를 본다 || Open the door\n- 돌아간다 => 서하가 실망한다 || Turn back\n</spoil>';
+        if (/<route>|<facts>|<spoil>/.test(quietPrompt)) return '<route>\n- 다은와 비밀을 나눈다 | 둘 사이가 가까워짐\n- 경비원에게 들킨다 | 긴장감\n</route>\n<facts>\n- 연구실 문은 오른쪽에 있다\n- 다은는 우산을 두고 왔다\n</facts>\n<spoil>\n- 문을 연다 => 푸른 빛의 정체를 본다 || Open the door\n- 돌아간다 => 다은가 실망한다 || Turn back\n</spoil>';
         return '<choices>\n[brave|gamble] Kick the door open || 문을 걷어찬다\n[rational|safe] Knock first || 먼저 노크한다\n[tease|none] Whistle loudly || 크게 휘파람을 분다\n</choices>'; },
 };
 window.SillyTavern = { getContext: () => ctxObj };
@@ -36,11 +36,11 @@ window.toastr = { info() {}, success() {}, warning() {}, error(m) { console.warn
 
 if (Q.get('lite') === '1') window.MeatballLite = {
     version: 'test', ready: () => true,
-    state: () => ({ date: '3월 14일 밤', loc: '연구동', with: ['서하'], cash: 1200, currency: '원', needs: { hunger: 12 }, attrs: { 힘: 1, 지능: 3, 매력: 1 }, status: [], danger: [{ key: 'hunger', name: '허기', icon: '🍞', stage: '위험', dice: -2 }] }),
+    state: () => ({ date: '3월 14일 밤', loc: '연구동', with: ['다은'], cash: 1200, currency: '원', needs: { hunger: 12 }, attrs: { 힘: 1, 지능: 3, 매력: 1 }, status: [], danger: [{ key: 'hunger', name: '허기', icon: '🍞', stage: '위험', dice: -2 }] }),
     diceParts: (a) => [...(a ? [{ why: a, n: { 힘: 1, 지능: 3, 매력: 1 }[a] ?? 0 }] : []), { why: '허기 위험', n: -2 }],
     preview: (l) => /라면|ramen/i.test(l) ? { text: '−1,500원 · 허기 +40', ok: true } : null,
     luck: (l = '') => ({ rolled: true, stars: 4, tier: '', text: '★★★★☆ 먼저 말을 걸면 좋은 날', good: 'talk', bad: 'fight', fit: /말|노크|Knock/.test(l) ? 1 : 0 }),
-    scene: () => ({ goods: [{ name: '컵라면', price: 1500 }], people: [{ name: '서하', want: '오늘 밤 안에 연구실을 확인하고 싶다' }] }),
+    scene: () => ({ goods: [{ name: '컵라면', price: 1500 }], people: [{ name: '다은', want: '오늘 밤 안에 연구실을 확인하고 싶다' }] }),
     paused: () => false,
     ...(Q.get('lmode') ? { mode: () => Q.get('lmode') } : {}), // 없으면 A로 봄
     ...(Q.get('pend') ? { pendingChoice: (i, x) => { (ST.pending ??= []).push({ ...x, mesId: i }); } /* 라이트와 같은 모양: (사용자 메시지 번호, 기록) */ } : {}),
@@ -64,7 +64,7 @@ function render(full = false) {
     c.querySelectorAll(':scope > .mes').forEach(el => { if (Number(el.getAttribute('mesid')) >= ST.chat.length) el.remove(); });
     ST.dirty.clear();
 }
-const aiMsg = (mes) => ({ is_user: false, name: '서하', mes, swipes: [mes], swipe_id: 0, swipe_info: [{ extra: {} }], extra: {} });
+const aiMsg = (mes) => ({ is_user: false, name: '다은', mes, swipes: [mes], swipe_id: 0, swipe_info: [{ extra: {} }], extra: {} });
 
 // 프롬프트 만들기 (실리태번처럼: 채팅 글 + 확장 주입)
 async function sendPrompt(type, upto) {
