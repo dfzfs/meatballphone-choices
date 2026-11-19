@@ -1,175 +1,177 @@
-// 본편 주입 · 답에서 선택지 읽기
-import { settings, ctx, rng, pickW, kindOf, riskOf, clamp, heatAt, stageOf, mbState, urgentNeeds, meta, userCount, lastUserPick, lite } from './core.js';
-import { RESULT, SEV } from './data.js';
+// 본편 주입 · 답에서 선택지 읽기 · 지난 선택지 옮기기 · 다시 받기 글
+import { settings, ctx, rng, pickW, kindOf, riskOf, kindsOn, risksOn, clamp, meta, userCount, lite, liteState, liteLuck, liteScene, setExtra } from './core.js';
+import { RESULT } from './data.js';
+import * as DATA from './data.js';
 
 export const INJECT_KEY = 'mb_choices';
 
-// 이번 턴의 위험 순서 (+ plan 모드면 성향도)
-export function planFor(seed, stage) {
-    const set = settings();
+// 이번 턴 위험 순서 (같은 턴이면 같은 결과)
+export function riskPlan(seed) {
+    const n = settings().count;
     const r = rng(`plan:${ctx().chatId ?? ''}:${seed}`);
-    const n = set.count > 0 ? clamp(set.count, 2, 12) : 3 + Math.floor(r() * 3);
-    const danger = set.danger.on;
-    const risks = set.risks.filter(x => x.on);
-    const rw = (x) => x.w + (danger ? ({ trap: stage, cursed: stage >= 2 ? 1 : 0, safe: stage >= 3 ? -1 : 0 }[x.id] ?? 0) : 0);
-    const R = Array.from({ length: n }, () => pickW(r, risks.length ? risks : [riskOf('none')], rw).id);
-    if (R.every(x => x !== 'none' && x !== 'safe') && stage < 3) R[Math.floor(r() * n)] = 'none';
-    // 성향: 겹치지 않게 (모자라면 겹침)
-    const pool = set.kinds.filter(k => k.on && k.w > 0);
-    const K = [];
-    let left = pool.slice();
-    for (let i = 0; i < n; i++) { if (!left.length) left = pool.slice(); if (!left.length) break; const k = pickW(r, left, x => x.w); K.push(k.id); left = left.filter(x => x !== k); }
-    return { n, risks: R, kinds: K };
+    const list = risksOn().length ? risksOn() : [riskOf('none')];
+    const R = Array.from({ length: n }, () => pickW(r, list, x => x.w).id);
+    if (R.every(x => x === 'gamble' || x === 'price') && list.some(x => x.id === 'none')) R[Math.floor(r() * n)] = 'none';
+    return R;
 }
 
-function needHint() {
-    const u = urgentNeeds(mbState()).slice(0, 3);
-    return u.length ? ` (now most urgent: ${u.map(g => `${g.name} ${g.cur}/${g.max}`).join(', ')})` : '';
+// 라이트가 있으면 지금 장면 한 줄 (같이 있는 사람 · 장소 · 살 수 있는 것 · 급한 욕구 · 원하는 것 · 오늘 운세)
+export function sceneLine() {
+    if (!lite()) return '';
+    const st = liteState(); if (!st) return '';
+    const P = [];
+    if (st.loc) P.push(`at ${st.loc}`);
+    if (st.with?.length) P.push(`with ${st.with.join(', ')}`);
+    const urgent = (st.danger ?? []).filter(d => d.stage === '위험' || d.stage === '주의').slice(0, 2).map(d => `${d.name} ${d.stage === '위험' ? 'critical' : 'low'}`);
+    if (urgent.length) P.push(`urgent: ${urgent.join(', ')}`);
+    const sc = liteScene();
+    if (sc?.goods?.length) P.push(`can buy here: ${sc.goods.slice(0, 4).map(g => g.name).join(', ')}`);
+    const wants = (sc?.people ?? []).filter(p => p.want && st.with?.includes(p.name)).slice(0, 2);
+    if (wants.length) P.push(`wants: ${wants.map(p => `${p.name} — ${p.want}`).join('; ')}`);
+    const lk = liteLuck();
+    if (lk?.rolled && lk.good) P.push(`today's luck favors: ${lk.good}${lk.bad ? `, avoid: ${lk.bad}` : ''}`);
+    return P.length ? `Ground the options in the current scene (${P.join(' · ')}).` : '';
 }
-function resultText(p, stage) {
+
+function resultText(p) {
     if (!p) return '';
-    const set = settings();
-    const sev = SEV[set.danger.on ? stage : 0];
     const k = kindOf(p.kind), rk = riskOf(p.risk);
-    const L = [`[CHOICE RESULT] {{user}} chose "${p.label}"${k ? ` (${k.ai.replace('{{user}}', '{{user}}')})` : ''}.`];
+    const L = [`[CHOICE RESULT] {{user}}'s message above is the option they chose${k ? ` (${k.ai})` : ''}.`];
     if (p.check) {
         const c = p.check;
         L.push(`Dice: d20 ${c.roll} ${c.mod >= 0 ? '+' : '−'}${Math.abs(c.mod)} vs DC ${c.dc} → ${c.crit ? 'CRITICAL SUCCESS' : c.fumble ? 'CRITICAL FAILURE' : c.ok ? 'SUCCESS' : 'FAILURE'}. The outcome MUST follow this result.`);
-        L.push(c.crit ? RESULT.crit() : c.fumble ? RESULT.fumble(sev) : c.ok ? RESULT.win() : RESULT.lose(sev));
+        L.push(c.crit ? RESULT.crit : c.fumble ? RESULT.fumble : c.ok ? RESULT.win : RESULT.lose);
     }
-    if (RESULT[rk?.id]) L.push(RESULT[rk.id](sev));
+    if (rk.id === 'price') L.push(RESULT.price);
     if (k?.res) L.push(k.res);
-    if (L.length > 1 || p.check) L.push(lite()
-        ? 'Record what actually happens as event lines in your <meatball> block (status: / cash: / item: / act: …) — events, not numbers.'
-        : 'If you write a <meatball> status block, record the effects there (stat / cash / item / cond / aff lines).');
-    return L.join(' ');
+    if (L.length === 1) return '';
+    L.push(lite() ? 'Record what actually happens as event lines in your <meatball> block — events, not numbers.' : '');
+    return L.filter(Boolean).join(' ');
 }
 
 export function buildPrompt(seed, pending) {
     const set = settings();
     if (!set.enabled) return '';
-    const stage = set.danger.on ? stageOf(heatAt(Infinity, pending)) : 0;
-    const plan = planFor(seed, stage);
+    const plan = riskPlan(seed);
     const L = [];
-    const res = resultText(pending, stage);
+    const res = resultText(pending);
     if (res) L.push(res);
-    const fmt = 'one per line, formatted exactly: [kind|risk] option text';
-    L.push(`[CHOICES] End your narration (before any <meatball> block) with exactly ${plan.n} options for {{user}}'s next action, written in the same language as your narration, inside <choices>…</choices>, ${fmt}.`);
-    const usedK = set.kindMode === 'plan' ? [...new Set(plan.kinds)].map(kindOf).filter(Boolean) : set.kinds.filter(k => k.on && k.w > 0);
-    if (set.kindMode === 'plan') L.push(`Slots in this order: ${plan.kinds.map((k, i) => `[${k}|${plan.risks[i]}]`).join(' ')}.`);
-    else L.push(`Risks in this order: ${plan.risks.map(r => `[${r}]`).join(' ')}. For each line choose the kind that best fits the moment (each kind at most once, all options clearly different).`);
-    L.push('Kinds: ' + usedK.map(k => `${k.id} = ${k.ai}${k.id === 'need' ? needHint() : ''}`).join('; ') + '.');
-    const usedR = [...new Set(plan.risks)].map(riskOf).filter(r => r && r.id !== 'none');
+    L.push(`[CHOICES] End your reply (before any <meatball> block) with exactly ${plan.length} options for {{user}}'s next action inside <choices>…</choices>, written in the same language as the story, one per line: [kind|risk] option text.`);
+    L.push(`Risks in this order: ${plan.map(r => `[${r}]`).join(' ')}. For each line pick the kind that best fits the moment.`);
+    L.push('Kinds: ' + kindsOn().map(k => `${k.id} = ${k.ai}`).join('; ') + '.');
+    const usedR = [...new Set(plan)].map(riskOf).filter(r => r.id !== 'none');
     if (usedR.length) L.push('Risks: ' + usedR.map(r => `${r.id} = ${r.ai}`).join('; ') + '; none = ordinary stakes.');
-    L.push('Each option: one short, concrete action (under ~50 characters). No explanations, no numbering outside the brackets.');
-    if (set.danger.on && stage) L.push(`Danger ${stage}/3 (${['', 'uneasy', 'dangerous', 'catastrophic'][stage]}): the world is growing hostile; traps are nastier and safe options cost more.`);
-    L.push(`Example:\n<choices>\n[${plan.kinds[0] ?? 'rational'}|${plan.risks[0]}] …\n[${plan.kinds[1] ?? 'careful'}|${plan.risks[1] ?? 'none'}] …\n</choices>`);
+    L.push('Each option: one concrete action {{user}} can take right now, under 50 characters, clearly different from the others (not the same action in another tone). No explanations, no numbering.');
+    const sc = sceneLine(); if (sc) L.push(sc);
     return L.join('\n');
 }
-
 export function setInject(text) {
     try { ctx().setExtensionPrompt(INJECT_KEY, text ?? '', 1, clamp(Number(settings().depth) || 0, 0, 10), false, 0); } catch (e) { console.warn('[미트볼 선택지]', e); }
 }
+export const injectTokens = () => Math.round(buildPrompt(userCount() + 1, null).length / 3.2);
+export const sceneTokens = () => Math.round(sceneLine().length / 3.2);
+
+// 결과 지시는 「고른 바로 다음 답」 한 번에만: 만들 답 바로 앞 메시지가 고른 기록이 있는 내 메시지일 때
 const inputHas = (p) => { const v = document.getElementById('send_textarea')?.value ?? ''; return !!p && !!v.trim() && v.includes(p.label.slice(0, 8)); };
+export function pickBefore(type) {
+    const chat = ctx().chat ?? [];
+    const prev = type === 'swipe' ? chat[chat.length - 2] : chat[chat.length - 1];
+    return prev?.is_user ? prev.extra?.mbc ?? null : null;
+}
 export function onBeforeGen(type, _params, dryRun) {
     if (dryRun) return;
     if (!settings().enabled || ['quiet', 'impersonate', 'continue'].includes(type)) { setInject(''); return; }
-    let pending = null, seed = userCount();
-    if (type === 'normal' || !type) {
-        const typed = (document.getElementById('send_textarea')?.value ?? '').trim();
-        if (typed) { seed += 1; pending = inputHas(meta().pending) ? meta().pending : null; } else pending = lastUserPick();
-    } else pending = lastUserPick();
-    setInject(buildPrompt(seed, pending));
+    const typed = (type === 'normal' || !type) && !!(document.getElementById('send_textarea')?.value ?? '').trim();
+    const pending = typed ? (inputHas(meta().pending) ? meta().pending : null) : pickBefore(type);
+    setInject(buildPrompt(userCount() + (typed ? 1 : 0), pending));
 }
 
 // ───── 답에서 선택지 읽기 ─────
-const NUM_RE = /^\s*(?:[-*•·]\s*)?(?:\d{1,2}|[①-⑫]|[a-fA-F])\s*[.)．:、]\s*/;
-const TAG_RE = /^\s*[\[【〔]\s*([^\]】〕|｜/]{1,24})\s*(?:[|｜/]\s*([^\]】〕]{1,24}))?\s*[\]】〕]\s*/;
-function idFor(word, list) {
-    const w = String(word ?? '').trim().toLowerCase();
-    if (!w) return null;
-    return list.find(x => x.id.toLowerCase() === w || x.name.toLowerCase() === w)?.id ?? null;
-}
+export const NUM_RE = /^\s*(?:[-*•·]\s*)?(?:\d{1,2}|[①-⑫]|[a-fA-F])\s*[.)．:、]\s*/;
+export const TAG_RE = /^\s*[\[【〔]\s*([^\]】〕|｜/]{1,24})\s*(?:[|｜/]\s*([^\]】〕]{1,24}))?\s*[\]】〕]\s*/;
+const idIn = (w, list) => { const x = String(w ?? '').trim().toLowerCase(); return x ? list.find(it => it.id === x || it.name === x)?.id ?? null : null; };
 export function parseBlock(text) {
     if (!text) return null;
-    const mm = String(text).match(/<choices>([\s\S]*?)(?:<\/choices>|$)/i);
+    const mm = String(text).match(/<choices>([\s\S]*?)(?:<\/choices>|<meatball>|<status>|$)/i);
     if (!mm) return null;
-    const set = settings();
+    const { KINDS, RISKS } = DATA;
     const items = [];
     for (const raw of mm[1].split(/\n+/).map(s => s.trim()).filter(Boolean)) {
-        let t = raw.replace(NUM_RE, '');
-        let kind = null, risk = null;
+        let t = raw.replace(NUM_RE, ''), kind = null, risk = null;
         const tg = t.match(TAG_RE);
-        if (tg) {
-            const a = tg[1], b = tg[2];
-            kind = idFor(a, set.kinds) ?? idFor(b, set.kinds);
-            risk = idFor(b, set.risks) ?? idFor(a, set.risks);
-            if (kind || risk) t = t.replace(TAG_RE, '');
-        }
-        t = t.replace(NUM_RE, '').trim();
-        let gloss = null;
-        const gi = t.indexOf('||'); if (gi >= 0) { gloss = t.slice(gi + 2).trim() || null; t = t.slice(0, gi).trim(); }
+        if (tg) { kind = idIn(tg[1], KINDS) ?? idIn(tg[2], KINDS); risk = idIn(tg[2], RISKS) ?? idIn(tg[1], RISKS); if (kind || risk) t = t.replace(TAG_RE, ''); }
+        t = t.replace(NUM_RE, '').replace(/\s*[(（]\s*대가\s*[:：][^)）]*[)）]\s*$/, '').trim(); // 대가는 배지로만
+        let gloss = null; const gi = t.indexOf('||'); if (gi >= 0) { gloss = t.slice(gi + 2).trim() || null; t = t.slice(0, gi).trim(); }
         if (t) items.push({ kind, risk, label: t, gloss, raw });
     }
-    return items.length ? items.slice(0, 12) : null;
+    return items.length ? items.slice(0, 6) : null;
 }
+// 지금 스와이프의 선택지 (본문에 있으면 본문, 옮겨 뒀으면 extra)
 export function choicesOf(i) {
     const m = ctx().chat?.[i];
     if (!m || m.is_user || m.is_system) return null;
-    const raw = parseBlock(m.mes) ?? parseBlock(m.extra?.mbcBlock); // 지난 답은 본문에서 빼서 extra에 옮겨 둠
-    const shown = parseBlock(m.extra?.display_text) ?? parseBlock(m.extra?.mbcShown) ?? raw; // 번역 확장이 만든 글(한국어)이 있으면 그걸 보여 준다
+    const raw = parseBlock(m.mes) ?? parseBlock(m.extra?.mbcBlock);
+    const shown = parseBlock(m.extra?.display_text) ?? parseBlock(m.extra?.mbcShown) ?? raw;
     if (!shown) return null;
-    const need = shown.some((it, k) => !(it.kind ?? raw?.[k]?.kind) || !(it.risk ?? raw?.[k]?.risk));
-    const plan = need ? planFor(userCount(i), 0) : { kinds: [], risks: [] };
+    const plan = riskPlan(userCount(i));
     return shown.map((it, k) => ({
         ...it,
         label: it.gloss ?? it.label,
         orig: raw?.[k]?.label ?? it.label, // 입력창에 넣을 원문 (번역 전)
         origRaw: raw?.[k]?.raw ?? null,
-        kind: it.kind ?? raw?.[k]?.kind ?? plan.kinds[k] ?? 'rational',
-        risk: it.risk ?? raw?.[k]?.risk ?? plan.risks[k] ?? 'none',
+        kind: it.kind ?? raw?.[k]?.kind ?? 'rational',
+        risk: it.risk ?? raw?.[k]?.risk ?? plan[k] ?? 'none',
     }));
 }
-export { NUM_RE, TAG_RE };
 
-// ───── 🔄 선택지만 다시 받기 (추가 지시 가능 · AI 1회) ─────
+// ───── 지난 선택지를 본문에서 빼서 그 메시지(스와이프마다) extra로 옮기기 ─────
+const BLOCK = /\s*<choices>[\s\S]*?(?:<\/choices>|(?=<meatball>|<status>)|$)/i;
+const cut = (t) => { if (typeof t !== 'string' || !/<choices>/i.test(t)) return null; const b = t.match(BLOCK)?.[0]; return b ? { block: b.trim(), rest: t.replace(BLOCK, '').trimEnd() } : null; };
+export function tuck(m) {
+    if (!m || m.is_user || typeof m.mes !== 'string') return false;
+    let changed = false;
+    // 다른 스와이프들
+    if (Array.isArray(m.swipes)) m.swipes.forEach((sw, k) => {
+        if (k === m.swipe_id) return;
+        const c = cut(sw); if (!c) return;
+        m.swipes[k] = c.rest;
+        m.swipe_info ??= []; m.swipe_info[k] ??= {}; const ex = (m.swipe_info[k].extra ??= {});
+        ex.mbcBlock = c.block;
+        const d = cut(ex.display_text); if (d) { ex.mbcShown = d.block; ex.display_text = d.rest; }
+        changed = true;
+    });
+    // 지금 스와이프
+    const c = cut(m.mes);
+    if (c) {
+        m.mes = c.rest;
+        if (Array.isArray(m.swipes) && Number.isInteger(m.swipe_id)) m.swipes[m.swipe_id] = m.mes;
+        const patch = { mbcBlock: c.block };
+        const d = cut(m.extra?.display_text); if (d) { patch.mbcShown = d.block; patch.display_text = d.rest; }
+        setExtra(m, patch);
+        changed = true;
+    }
+    return changed;
+}
+// AI에게 가는 글에서도 한 번 더 빼기 (이어쓰기 등 본문에 남은 경우 · 이 확장 안내의 「<choices>…</choices>」는 남김)
+export function stripOld(text) {
+    return String(text ?? '').replace(/<choices>([\s\S]*?)(?:<\/choices>|(?=<meatball>|<status>)|$)/gi, (m, body) => { const b = body.trim(); return b.length < 3 || b === '…' ? m : ''; });
+}
+
+// ───── 🔄 선택지만 다시 받기 (추가 지시 · 바로 전 선택지만 피하게) ─────
 export function rerollPrompt(i, prev, extra, gloss) {
-    const set = settings();
     const k = (ctx().chat?.[i]?.extra?.mbcRe ?? 0) + 1;
-    const stage = set.danger.on ? stageOf(heatAt(i + 1)) : 0;
-    const plan = planFor(`${userCount(i)}:r${k}`, stage);
-    const usedK = set.kindMode === 'plan' ? [...new Set(plan.kinds)].map(kindOf).filter(Boolean) : set.kinds.filter(x => x.on && x.w > 0);
-    const usedR = [...new Set(plan.risks)].map(riskOf).filter(r => r && r.id !== 'none');
+    const plan = riskPlan(`${userCount(i)}:r${k}`);
     const L = [
         "[TASK] Do NOT continue the story. Write fresh options for {{user}}'s next action at this exact moment (right after the last reply).",
-        `Output ONLY a <choices>…</choices> block with exactly ${plan.n} lines, each formatted: [kind|risk] option text — in the same language as the story.`,
-        set.kindMode === 'plan' ? `Slots in this order: ${plan.kinds.map((x, j) => `[${x}|${plan.risks[j]}]`).join(' ')}.` : `Risks in this order: ${plan.risks.map(r => `[${r}]`).join(' ')}. Choose the kind that best fits each option (each kind at most once).`,
-        'Kinds: ' + usedK.map(x => `${x.id} = ${x.ai}`).join('; ') + '.',
+        `Output ONLY a <choices>…</choices> block with exactly ${plan.length} lines, each: [kind|risk] option text — in the same language as the story.`,
+        `Risks in this order: ${plan.map(r => `[${r}]`).join(' ')}. Kinds: ${kindsOn().map(x => `${x.id} = ${x.ai}`).join('; ')}.`,
     ];
-    if (usedR.length) L.push('Risks: ' + usedR.map(r => `${r.id} = ${r.ai}`).join('; ') + '; none = ordinary stakes.');
-    if (prev?.length) L.push(`Do not repeat these earlier options: ${prev.map(x => `"${x}"`).join(', ')}.`);
-    if (extra) L.push(`Player's extra direction for these options: ${extra}`);
+    const usedR = [...new Set(plan)].map(riskOf).filter(r => r.id !== 'none');
+    if (usedR.length) L.push('Risks: ' + usedR.map(r => `${r.id} = ${r.ai}`).join('; ') + '.');
+    if (prev?.length) L.push(`Do not repeat these options: ${prev.map(x => `"${x}"`).join(', ')}.`);
+    if (extra) L.push(`Player's extra direction: ${extra}`);
+    const sc = sceneLine(); if (sc) L.push(sc);
     if (gloss) L.push('After each option add " || " and a natural Korean translation of it.');
-    L.push('Each option: one short, concrete action (under ~50 characters).');
+    L.push('Each option: one concrete action under 50 characters, clearly different from the others.');
     return L.join('\n');
-}
-// 지난 <choices> 블록을 AI에게 가는 글에서 빼기 (닫는 태그를 빼먹었거나 줄바꿈이 달라도 · 이 확장의 안내 · 예시는 남김)
-export function stripOld(text) {
-    return String(text ?? '').replace(/<choices>([\s\S]*?)(?:<\/choices>|(?=<meatball>|<status>)|$)/gi, (m, body, off, all) => {
-        if (/Example:\s*$/.test(all.slice(Math.max(0, off - 16), off))) return m;
-        const b = body.trim(); if (b.length < 3 || b === '…') return m;
-        return '';
-    });
-}
-// 답 본문에서 <choices> 블록을 빼서 extra에 옮기기 → 프롬프트 · 요약 · 다른 확장 어디에도 안 들어감 (화면은 extra에서 읽음)
-const BLOCK = /\s*<choices>[\s\S]*?(?:<\/choices>|(?=<meatball>|<status>)|$)/i;
-export function tuck(m) {
-    if (!m || m.is_user || typeof m.mes !== 'string' || !/<choices>/i.test(m.mes)) return false;
-    const b = m.mes.match(BLOCK)?.[0]; if (!b) return false;
-    m.extra = { ...(m.extra ?? {}), mbcBlock: b.trim() };
-    m.mes = m.mes.replace(BLOCK, '').trimEnd();
-    if (Array.isArray(m.swipes) && Number.isInteger(m.swipe_id)) m.swipes[m.swipe_id] = m.mes;
-    const dt = m.extra.display_text;
-    if (typeof dt === 'string' && /<choices>/i.test(dt)) { m.extra.mbcShown = dt.match(BLOCK)?.[0]?.trim(); m.extra.display_text = dt.replace(BLOCK, '').trimEnd(); }
-    return true;
 }
