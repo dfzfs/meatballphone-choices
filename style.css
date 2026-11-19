@@ -1,0 +1,83 @@
+/* 미트볼 선택지 — 미트볼 칩(.ss-slot) 바로 위 */
+.mbc-panel {
+    --mbc-bg: color-mix(in srgb, var(--SmartThemeBlurTintColor, #1d1d22) 88%, transparent);
+    --mbc-fg: var(--SmartThemeBodyColor, #e8e6e3);
+    --mbc-line: color-mix(in srgb, var(--mbc-fg) 18%, transparent);
+    --mbc-good: #4fae7c; --mbc-bad: #d9534f; --mbc-mid: #9b7bdc;
+    display: block; margin: 12px 0 8px; padding: 12px; border-radius: 14px;
+    background: var(--mbc-bg); color: var(--mbc-fg); border: 1px solid var(--mbc-line);
+    font-size: .95em; line-height: 1.4; position: relative; z-index: 2; isolation: isolate;
+}
+.mbc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.mbc-title { font-size: .78em; opacity: .65; letter-spacing: .04em; }
+.mbc-heat { flex: 1; height: 6px; border-radius: 99px; background: var(--mbc-line); overflow: hidden; }
+.mbc-heat i { display: block; height: 100%; background: var(--mbc-good); transition: width .4s; }
+.mbc-heat.s1 i { background: #d6a243; } .mbc-heat.s2 i { background: #e0703a; } .mbc-heat.s3 i { background: var(--mbc-bad); }
+.mbc-stage { font-size: .75em; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--mbc-line); }
+.mbc-stage.s2, .mbc-stage.s3 { color: #fff; background: var(--mbc-bad); border-color: transparent; }
+.mbc-list { display: grid; gap: 8px; }
+.mbc-opt {
+    display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 8px 12px;
+    text-align: left; font: inherit; color: inherit; cursor: pointer;
+    background: color-mix(in srgb, var(--mbc-fg) 5%, transparent); border: 1px solid var(--mbc-line); border-radius: 12px;
+    transition: background .15s, border-color .15s, transform .15s;
+}
+.mbc-opt:hover:not(:disabled) { background: color-mix(in srgb, var(--mbc-fg) 11%, transparent); transform: translateX(2px); }
+.mbc-opt.sel { border-color: var(--mbc-fg); }
+.mbc-num { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: .78em; background: var(--mbc-line); }
+.mbc-label { flex: 1; min-width: 0; }
+.mbc-badge, .mbc-res { flex: none; font-size: .72em; padding: 2px 8px; border-radius: 99px; white-space: nowrap; border: 1px solid currentColor; }
+.mbc-badge.good { color: var(--mbc-good); } .mbc-badge.bad { color: var(--mbc-bad); } .mbc-badge.mid { color: var(--mbc-mid); }
+.mbc-res { color: #fff; background: var(--mbc-bad); border-color: transparent; }
+.mbc-opt.t-safe .mbc-res, .mbc-opt.t-risk.mine .mbc-res:only-child { background: var(--mbc-good); }
+.mbc-panel.stale { padding: 8px 12px; opacity: .7; }
+.mbc-panel.stale .mbc-opt { min-height: 0; padding: 4px 8px; cursor: default; }
+.mbc-panel.stale .mbc-opt:not(.mine) { opacity: .55; }
+.mbc-panel.stale .mbc-opt.mine { border-color: var(--mbc-fg); }
+.mbc-opt.t-odd .mbc-label { text-shadow: 1px 0 rgba(155, 123, 220, .55), -1px 0 rgba(80, 200, 220, .35); }
+
+/* 선택지 창 단계 */
+.mbc-panel.s1 { border-color: rgba(214, 162, 67, .6); }
+.mbc-panel.s2 { border-color: rgba(224, 112, 58, .8); box-shadow: 0 0 0 1px rgba(224, 112, 58, .25), 0 0 18px rgba(217, 83, 79, .2); animation: mbc-shake 7s infinite; }
+.mbc-panel.s3 { border-color: var(--mbc-bad); box-shadow: 0 0 22px rgba(217, 83, 79, .45); animation: mbc-shake 3.5s infinite; }
+.mbc-panel.s3 .mbc-opt { animation: mbc-flick 4.5s infinite; }
+@keyframes mbc-shake { 0%, 94%, 100% { transform: none; } 95% { transform: translate(-2px, 1px) skewX(-1deg); } 97% { transform: translate(2px, -1px); } }
+@keyframes mbc-flick { 0%, 90%, 100% { opacity: 1; } 92% { opacity: .55; } 94% { opacity: 1; } 96% { opacity: .7; } }
+
+/* 일그러진 글자 */
+.mbc-z { display: inline; }
+.mbc-z-blur { filter: blur(.6px); opacity: .8; }
+.mbc-z-swap { color: color-mix(in srgb, currentColor 70%, #d9534f); }
+.mbc-z-dup { letter-spacing: -.35em; opacity: .85; }
+.mbc-z-split { font-size: .82em; letter-spacing: -.05em; }
+.mbc-z-zalgo { display: inline-block; }
+
+/* 채팅 화면 전체 (효과 범위 = 채팅 화면 전체) */
+body.mbc-s1 #chat { box-shadow: inset 0 0 60px rgba(214, 162, 67, .15); }
+body.mbc-s2 #chat { box-shadow: inset 0 0 90px rgba(217, 83, 79, .25); }
+body.mbc-s2 #chat .last_mes .mes_text { animation: mbc-drift 9s ease-in-out infinite; }
+body.mbc-s3 #chat { box-shadow: inset 0 0 140px rgba(160, 20, 20, .45); }
+body.mbc-s3 #chat .last_mes .mes_text { animation: mbc-drift 5s ease-in-out infinite; text-shadow: 1px 0 rgba(255, 0, 60, .35), -1px 0 rgba(0, 220, 255, .3); }
+body.mbc-s3 #chat::after {
+    content: ''; position: sticky; bottom: 0; left: 0; display: block; height: 0; pointer-events: none;
+}
+body.mbc-s3 #chat .last_mes { animation: mbc-flick 6s infinite; }
+@keyframes mbc-drift { 0%, 100% { transform: none; } 50% { transform: translateX(1px) skewX(-.4deg); } }
+
+/* 설정 */
+.mbc-settings .mbc-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; }
+.mbc-settings .mbc-row > span { flex: 0 0 40%; }
+.mbc-settings .mbc-row select, .mbc-settings .mbc-row input { flex: 1; margin: 0; }
+.mbc-settings .mbc-sub { font-size: .85em; opacity: .7; margin: 10px 0 2px; }
+.mbc-settings .mbc-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+@media (max-width: 600px) {
+    .mbc-panel { padding: 8px; }
+    .mbc-opt { padding: 8px; }
+    .mbc-badge { font-size: .68em; padding: 1px 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mbc-panel, .mbc-opt, body[class*="mbc-s"] #chat .mes_text, body[class*="mbc-s"] #chat .last_mes { animation: none !important; }
+}
+
+.mbc-cost{margin-left:auto;font-size:11px;opacity:.75;white-space:nowrap}.mbc-cost.poor{opacity:.4;text-decoration:line-through}
