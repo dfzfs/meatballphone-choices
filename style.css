@@ -191,3 +191,11 @@
     .mbc-past-row .nm { width: auto; }
     .mbc-card > .mbc-row { flex-wrap: wrap; }
 }
+/* 📲 미트볼폰 안 「선택지」 앱 화면 */
+.mbc-app{display:flex;flex-direction:column;gap:8px;padding:4px 2px}
+.mbc-app p{margin:0 0 6px;opacity:.8;font-size:.92em;line-height:1.5}
+.mbc-app label{font-weight:600;font-size:.9em;margin-top:4px}
+.mbc-app-seg{display:flex;gap:6px;flex-wrap:wrap}
+.mbc-app-seg button,.mbc-app-all{border:1px solid rgba(127,127,127,.35);background:rgba(127,127,127,.08);color:inherit;border-radius:12px;padding:8px 12px;font:inherit;cursor:pointer;flex:1 1 auto}
+.mbc-app-seg button.on{background:#ff7a59;border-color:#ff7a59;color:#fff}
+.mbc-app-all{margin-top:10px}

@@ -2,6 +2,7 @@
 import { KINDS, RISKS, DCS } from './data.js';
 
 export const MODULE = 'mbChoices';
+export const VERSION = '0.8.0';
 export const LOG = '[미트볼폰 선택지]';
 export const ctx = () => SillyTavern.getContext();
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));

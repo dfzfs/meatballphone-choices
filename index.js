@@ -1,6 +1,6 @@
 // 미트볼폰 선택지 — 답 끝의 선택지를 고르기 쉬운 목록으로. 미트볼폰 칩 위에 붙는다.
 // 저장: 선택지 블록은 그 AI 메시지(스와이프마다) extra · 고른 기록은 그다음 사용자 메시지 extra. 따로 쌓는 기록 없음.
-import { settings, ctx, meta, userCount, LOG, liteClear, setExtra, lite, requestSave, afterReply, genStarted, genEnded, isGenerating } from './src/core.js';
+import { settings, ctx, meta, userCount, LOG, VERSION, save, esc, liteClear, setExtra, lite, requestSave, afterReply, genStarted, genEnded, isGenerating } from './src/core.js';
 import { onBeforeGen, setInject, buildPrompt, stripOld, tuck } from './src/prompt.js';
 import { decorate, lastAIIndex, ui, choose, helpSheet, reroll, branchHere, dropSide, placeSide } from './src/panel.js';
 import { fetchGuide, guideItems, gst } from './src/guide.js';
@@ -150,7 +150,25 @@ function init() {
     document.addEventListener('meatlite:update', () => { clearTimeout(mlT); mlT = setTimeout(() => { liteClear(); const last = lastAIIndex(); const el = document.querySelector(`#chat .mes[mesid="${last}"]`); if (el) decorate(el, last, true); }, 120); });
     window.addEventListener('resize', () => placeEditDock(), { passive: true });
     watch(); decorateAll();
+    phoneApp();
     console.log(LOG, 'loaded');
+}
+// 📲 미트볼폰 홈에 「선택지」 앱으로 들어가기 (폰이 없으면 아무 일도 안 함)
+function phoneApp() {
+    const seg = (k, opts) => `<div class="mbc-app-seg" data-k="${k}">${opts.map(([v, l]) => `<button class="${String(settings()[k]) === String(v) ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div>`;
+    const draw = (el, phone) => {
+        el.innerHTML = `<div class="mbc-app"><p>AI 답 끝의 선택지를 고르기 쉬운 목록으로 바꿔요. v${esc(VERSION)}</p>`
+            + `<label>켜기</label>${seg('enabled', [[true, '켜짐'], [false, '꺼짐']])}`
+            + `<label>받는 때</label>${seg('gen', [['ask', '눌러서 (본편 토큰 0)'], ['auto', '매 답']])}`
+            + `<label>보기</label>${seg('view', [['list', '답 밑 목록'], ['side', '옆 동그라미']])}`
+            + `<button class="mbc-app-all">⚙️ 모든 설정</button></div>`;
+        el.querySelectorAll('.mbc-app-seg button').forEach(b => b.addEventListener('click', () => {
+            const k = b.parentElement.dataset.k, raw = b.dataset.v; settings()[k] = raw === 'true' ? true : raw === 'false' ? false : raw; save();
+            decorateAll(false, true); draw(el, phone);
+        }));
+        el.querySelector('.mbc-app-all').addEventListener('click', () => { phone.close(); openEditor(); });
+    };
+    (globalThis.MeatballPhoneApps ??= []).push({ id: 'choices', name: '선택지', icon: '🎯', color: '#ff7a59', version: VERSION, desc: '선택지 켜기 · 받는 때 · 보기', render: draw });
 }
 const { eventSource: _es, event_types: _et } = SillyTavern.getContext();
 _es.on(_et.APP_READY, init);
