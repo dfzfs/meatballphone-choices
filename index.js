@@ -170,6 +170,8 @@ function init() {
     window.addEventListener('resize', () => placeEditDock(), { passive: true });
     watch(); decorateAll();
     phoneApp();
+    // 📋 미트볼폰 「전체 복사」가 읽는 통로 (읽기만): 판 · 설정 · 지금 고른 기록
+    globalThis.MeatballChoices = Object.freeze({ version: VERSION, dump: () => structuredClone({ settings: { ...settings() }, chatOff: !!meta().off, pending: meta().pending ?? null, lastAI: lastAIIndex() }) });
     console.log(LOG, 'loaded');
 }
 // 📲 미트볼폰 홈에 「선택지」 앱으로 들어가기 (폰이 없으면 아무 일도 안 함)
