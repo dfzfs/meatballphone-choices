@@ -40,7 +40,12 @@ document.addEventListener('click', (e) => {
     const panel = t.closest('.mbc-panel') ?? t.closest('.mbc-dock');
     const i = Number(panel.closest('.mes')?.getAttribute('mesid') ?? panel.dataset.i);
     const act = t.dataset.mbcAct;
-    if (act === 'dock') { ui.open = !ui.open; if (!ui.open) { ui.sel = null; ui.reroll = false; } decorateAll(true); return; }
+    if (act === 'dock') {
+        const side = document.getElementById('mbc-side');
+        if (side?.classList.contains('open')) { ui.open = false; ui.hover = false; ui.sel = null; ui.reroll = false; ui.group = null; ui.hoverBlock = true; side.classList.remove('open'); } // 다시 누르면 닫기 (마우스가 나갈 때까지 다시 안 펼침)
+        else { ui.open = true; ui.hoverBlock = false; }
+        decorateAll(true); return;
+    }
     if (act === 'click') { const s = settings(); s.click = s.click === 'send' ? 'fill' : 'send'; ctx().saveSettingsDebounced(); decorateAll(true); return; }
     if (act === 'reroll') { ui.reroll = !ui.reroll; ui.open = true; decorateAll(true); if (ui.reroll) setTimeout(() => document.querySelector('.mbc-rr-in')?.focus(), 30); return; }
     if (act === 'rerollGo') { ui.rerollText = panel.querySelector('.mbc-rr-in')?.value ?? ui.rerollText; const p = reroll(i, ui.rerollText.trim()); decorateAll(true); p.then(() => decorateAll(true)); return; }
