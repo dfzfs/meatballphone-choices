@@ -285,6 +285,28 @@ for (const lite of ['0', '1']) {
     ok('페이지 오류 없음', p.errs.length === 0, p.errs.join(' | '));
     await p.close();
 }
+// ⑮ 📱 폰 안에서만: 채팅에는 아무것도 없고 폰 🎯 앱 안에서 받고 고름 · 폰 없으면 목록
+{
+    console.log('▶ 폰 안에서만');
+    const p = await page('lite=1&mode=chat&gen=ask');
+    await p.evaluate(() => { T.ST.reply = (n) => `장면 ${n}. 문 앞에 섰다.`; });
+    await p.evaluate(async () => { const { settings } = await import('../../src/core.js'); settings().view = 'phone'; });
+    await p.evaluate(() => T.send('연구동으로 간다', 1)); await p.waitForTimeout(400);
+    ok('채팅에는 목록 · 동그라미 · 칩 없음', await p.evaluate(() => !document.querySelector('#chat .mbc-panel') && !document.getElementById('mbc-side')));
+    // 폰이 앱을 여는 것처럼: 줄 선 앱의 render를 부름
+    await p.evaluate(() => { const app = (globalThis.MeatballPhoneApps ?? []).find(a => a.id === 'choices'); const el = document.createElement('div'); el.id = 'phone-app'; document.body.append(el); window.__closed = 0; app.render(el, { close: () => { window.__closed++; }, redraw() {}, toast() {} }); });
+    ok('폰 🎯 앱 안에 「선택지 받기」', await p.evaluate(() => !!document.querySelector('#phone-app .mbc-panel.inphone [data-mbc-act="ask"]')));
+    await p.click('#phone-app [data-mbc-act="ask"]'); await p.waitForTimeout(500);
+    ok('누르면 AI 1회 · 폰 안에 선택지 3개', await p.evaluate(() => T.ST.quietN === 1 && document.querySelectorAll('#phone-app .mbc-opt').length === 3 && !document.querySelector('#chat .mbc-panel')));
+    await p.click('#phone-app .mbc-opt[data-mbc-n="1"]'); await p.click('#phone-app [data-mbc-act="go"]');
+    await p.waitForFunction(() => document.getElementById('send_textarea').value.length > 0, null, { timeout: 4000 });
+    ok('폰 안에서 고르면 입력창에 들어감', /노크|Knock/.test(await p.evaluate(() => document.getElementById('send_textarea').value)));
+    // 폰이 없으면 목록으로
+    await p.evaluate(async () => { delete window.MeatballLite; delete globalThis.MeatballPhone; const { liteClear } = await import('../../src/core.js'); liteClear(); await T.es.emit('MESSAGE_UPDATED'); await T.wait(150); });
+    ok('폰이 없으면 답 밑 목록으로', await p.evaluate(() => !!document.querySelector('#chat .mbc-panel.live')));
+    ok('페이지 오류 없음', p.errs.length === 0, p.errs.join(' | '));
+    await p.close();
+}
 console.log(`\n결과: 통과 ${pass} · 실패 ${fail}`);
 await browser.close(); srv.close();
 process.exit(fail ? 1 : 0);

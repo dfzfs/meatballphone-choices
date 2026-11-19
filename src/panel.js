@@ -97,6 +97,23 @@ export function lastAIIndex() {
 }
 const pickedFor = (i) => { const u = (ctx().chat ?? [])[i + 1]; return u?.is_user ? u.extra?.mbc ?? null : null; };
 
+// 📱 「폰 안에서만」: 미트볼폰이 켜져 있으면 채팅에는 아무것도 안 붙이고 폰 🎯 앱 안에만 (폰이 없으면 목록)
+export const inPhone = () => settings().view === 'phone' && !!lite();
+// 폰 앱 칸에 지금 고를 수 있는 선택지 그리기
+export function drawPhonePanel(host) {
+    if (!host?.isConnected) return false;
+    const set = settings(), i = lastAIIndex(), live = i >= 0 && !ctx().chat?.[i + 1];
+    let panel = host.querySelector(':scope > .mbc-panel');
+    if (!panel) { panel = document.createElement('div'); panel.className = 'mbc-panel live inphone'; host.append(panel); }
+    if (panel.contains(document.activeElement) && document.activeElement.classList.contains('mbc-rr-in')) return true; // 추가 지시를 쓰는 중이면 그대로
+    panel.dataset.i = String(i);
+    panel.innerHTML = !set.enabled ? '<div class="mbc-gempty"><span>선택지가 꺼져 있어요</span></div>'
+        : !live ? '<div class="mbc-gempty"><span>AI 답이 오면 여기서 골라요</span></div>'
+        : ui.gen ? '<div class="mbc-gempty"><span>답을 받는 중…</span></div>'
+        : liveHTML(i, choicesOf(i) ?? []);
+    return true;
+}
+
 export function decorate(mesEl, lastAI, force = false) {
     const i = Number(mesEl.getAttribute('mesid'));
     const textEl = mesEl.querySelector('.mes_text');
@@ -107,6 +124,7 @@ export function decorate(mesEl, lastAI, force = false) {
     let panel = mesEl.querySelector('.mbc-panel');
     if (!items && !(live && set.enabled)) { panel?.remove(); return; }
     if (items) stripRaw(textEl, items);
+    if (inPhone()) { panel?.remove(); return; } // 📱 폰 안에서만: 채팅에는 목록 · 칩 · 동그라미 모두 없음
     if (live && ui.gen) { panel?.remove(); return; } // 받는 중엔 그리지 않음
     items ??= [];
     if (live && set.view === 'side' && window.innerWidth >= 700 && (items.length || set.gen !== 'auto')) { panel?.remove(); renderSide(i, items); return; }
@@ -125,7 +143,7 @@ export async function choose(i, n) {
     const items = choicesOf(i), it = items?.[n];
     if (!it || ui.rolling) return;
     const set = settings();
-    const panel = document.querySelector(`#chat .mes[mesid="${i}"] .mbc-panel`);
+    const panel = document.querySelector(`#chat .mes[mesid="${i}"] .mbc-panel`) ?? document.querySelector(`.mbc-panel.inphone[data-i="${i}"]`);
     const ch = checkOf(i, it, n);
     const check = ch ? rollCheck(ch, `${seedOf(i, n)}:${userCount()}`) : null;
     if (check && panel) await rollAnim(panel, check);

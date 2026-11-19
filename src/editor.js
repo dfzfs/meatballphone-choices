@@ -21,7 +21,7 @@ function body() {
         ${row('고르는 법', '두 번 = 눌러서 설명 · 확률을 보고 「이걸로」', seg('confirm', s.confirm, [[true, '두 번'], [false, '한 번']]))}
         ${row('고르면', '', seg('click', s.click, [['fill', '입력창에'], ['send', '바로 보내기']]))}
         ${row('넣을 글', '원문 = 번역 전 글', seg('input', s.input, [['raw', '원문'], ['shown', '화면 글']]))}
-        ${row('보는 방식', '옆 동그라미 = 채팅 옆 「?」에 마우스를 올리면 부채꼴로 펼침 (좁은 화면은 목록)', seg('view', s.view, [['list', '목록'], ['side', '옆 동그라미']]))}
+        ${row('보는 방식', '옆 동그라미 = 채팅 옆 「?」에 마우스를 올리면 부채꼴로 펼침 (좁은 화면은 목록) · 폰 안에서만 = 채팅에는 아무것도 안 붙고 미트볼폰 🎯 앱에서만 (폰이 없으면 목록)', seg('view', s.view, [['list', '목록'], ['side', '옆 동그라미'], ['phone', '📱 폰 안에서만']]))}
         ${s.view === 'side' ? `${row('동그라미 가로', '', seg('sideX', s.sideX ?? 'auto', [['auto', '자동'], ['right', '오른쪽'], ['left', '왼쪽']]))}${row('동그라미 세로', '마지막 답 = 마지막 답 옆을 따라감', seg('sideY', s.sideY ?? 'msg', [['msg', '마지막 답'], ['top', '위'], ['middle', '가운데'], ['bottom', '아래']]))}` : ''}
     </div>
     <div class="mbc-sec">탭 — 선택지 옆에 둘 것 (처음 누를 때 AI 1회로 한꺼번에)</div><div class="mbc-card">${Object.entries(SECTIONS).map(([k, x]) => row(`${x.icon} ${esc(x.name)}`, esc(x.desc), sw(`guide.${k}`, s.guide?.[k] !== false))).join('')}</div>
