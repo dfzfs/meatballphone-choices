@@ -206,14 +206,16 @@ export function decorate(mesEl, lastAI, force = false) {
         panel = document.getElementById('mbc-side');
         if (!panel) { panel = document.createElement('div'); panel.id = 'mbc-side'; document.body.append(panel); wireSide(panel); }
         sideLive.on = true;
-        if (force || panel.dataset.key !== key || panel.dataset.i !== String(i)) { panel.innerHTML = sideHTML(i, items, picked); panel.dataset.key = key; panel.dataset.i = String(i); }
+        const typing = panel.contains(document.activeElement) && document.activeElement.classList.contains('mbc-rr-in');
+        if (!typing && (force || panel.dataset.key !== key || panel.dataset.i !== String(i))) { panel.innerHTML = sideHTML(i, items, picked); panel.dataset.key = key; panel.dataset.i = String(i); }
         panel.className = `mbc-panel mbc-side th-${set.look.theme}${sideOpen() ? ' open' : ''}${ui.sel?.i === i ? ' has-sel' : ''}`;
         lookVars(panel);
         placeSide();
     } else {
         if (panel?.classList.contains('mbc-side')) panel = null;
         if (!panel) { panel = document.createElement('div'); }
-        if (force || panel.dataset.key !== key) { panel.innerHTML = panelHTML(i, items, live, picked, width); panel.dataset.key = key; }
+        const typing = panel.contains?.(document.activeElement) && document.activeElement.classList.contains('mbc-rr-in');
+        if (!typing && (force || panel.dataset.key !== key)) { panel.innerHTML = panelHTML(i, items, live, picked, width); panel.dataset.key = key; }
         panel.className = `mbc-panel th-${set.look.theme} lay-${set.layout}`;
         lookVars(panel);
         place(textEl, panel);
@@ -421,7 +423,7 @@ function wireSide(el) {
     el.addEventListener('mouseenter', () => { clearTimeout(sideT); if (!ui.hover) { ui.hover = true; el.classList.add('open'); } });
     el.addEventListener('mouseleave', () => { clearTimeout(sideT); sideT = setTimeout(() => { ui.hover = false; if (!sideOpen()) el.classList.remove('open'); }, 350); });
     let raf = 0;
-    const re = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(placeSide); };
+    const re = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { placeSide(); import('./editor.js').then(m => m.placeEditDock()); }); };
     document.getElementById('chat')?.addEventListener('scroll', re, { passive: true });
     window.addEventListener('resize', re, { passive: true });
 }

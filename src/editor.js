@@ -100,7 +100,7 @@ function fx(s) {
 function look(s) {
     const L = s.look;
     return `<div class="mbc-sec">모양</div><div class="mbc-card">
-        ${row('배치', '고리 = 답 옆 동그란 단추 → 올리면 펼쳐짐 (좁은 화면에선 목록)', seg('layout', s.layout, [['ring', '고리'], ['list', '목록'], ['cards', '카드']]))}
+        ${row('배치', '고리 = 채팅 옆 「?」 동그라미 → 올리면 부채꼴로 펼침 (좁은 화면에선 목록)', seg('layout', s.layout, [['ring', '고리'], ['list', '목록'], ['cards', '카드']]))}
     </div>
     <div class="mbc-sec">테마</div><div class="mbc-card pad"><div class="mbc-chipset">${Object.entries(THEMES).map(([id, t]) => `<button type="button" class="mbc-chip ${L.theme === id ? 'on' : ''}" data-set="look.theme" data-val="${id}">${esc(t.name)}</button>`).join('')}</div></div>
     <div class="mbc-sec">직접 고르기</div><div class="mbc-card">
@@ -128,10 +128,35 @@ function setPath(obj, path, val) { const ks = path.split('.'); let o = obj; whil
 function cast(raw, cur) { if (typeof cur === 'boolean') return raw === true || raw === 'true'; if (typeof cur === 'number') return Number(raw); return raw; }
 function getPath(obj, path) { return path.split('.').reduce((o, k) => o?.[k], obj); }
 
+// 설정은 팝업 대신 채팅 옆에 떠 있는 판 — 바꾸면서 선택지가 어떻게 바뀌는지 바로 보이게
+export function placeEditDock() {
+    const d = document.getElementById('mbc-editdock'); if (!d) return;
+    const c = document.getElementById('chat')?.getBoundingClientRect();
+    const W = Math.min(400, window.innerWidth - 24);
+    if (window.innerWidth < 700 || !c) { d.dataset.pos = 'sheet'; d.style.cssText = ''; return; }
+    d.dataset.pos = 'side';
+    const side = document.getElementById('mbc-side');
+    const hubRight = side && side.dataset.dir !== 'right'; // 동그라미가 오른쪽이면 판은 왼쪽
+    const left = c.left >= W + 24 ? c.left - W - 12 : hubRight ? 12 : window.innerWidth - W - 12;
+    d.style.left = `${Math.max(12, left)}px`; d.style.width = `${W}px`;
+    d.style.top = `${Math.max(12, c.top)}px`; d.style.maxHeight = `${Math.min(window.innerHeight - 24, c.height)}px`;
+}
 export async function openEditor(startTab) {
+    let dock = document.getElementById('mbc-editdock');
+    if (dock && !startTab) { dock.remove(); return; } // ⚙ 다시 누르면 닫기
     if (startTab) tab = startTab;
+    dock?.remove();
+    dock = document.createElement('div');
+    dock.id = 'mbc-editdock';
+    dock.innerHTML = '<div class="mbc-ed-top"><b>⚙ 선택지 설정</b><small>바꾸면 바로 반영돼요</small><button type="button" class="mbc-icon" data-ed-close aria-label="닫기">✕</button></div>';
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--SmartThemeBlurTintColor').trim().match(/rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/);
+    if (v) dock.style.setProperty('--edbg', `rgb(${v[1]}, ${v[2]}, ${v[3]})`);
     const root = document.createElement('div');
     root.className = 'mbc-editor';
+    dock.append(root);
+    dock.querySelector('[data-ed-close]').addEventListener('click', () => dock.remove());
+    document.body.append(dock);
+    placeEditDock();
     render(root);
     const rerender = () => { const y = root.querySelector('.mbc-tabbody')?.scrollTop ?? 0; render(root); const b = root.querySelector('.mbc-tabbody'); if (b) b.scrollTop = y; };
     root.addEventListener('click', async (e) => {
@@ -199,8 +224,6 @@ export async function openEditor(startTab) {
             changed(); if (['group', 'icon', 'name'].includes(t.dataset.edit)) rerender();
         }
     });
-    const c = ctx();
-    if (c.Popup && c.POPUP_TYPE) { const p = new c.Popup(root, c.POPUP_TYPE.TEXT, '', { wide: true, large: true, allowVerticalScrolling: true, okButton: '닫기' }); await p.show(); }
     return root;
 }
 

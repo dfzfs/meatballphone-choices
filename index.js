@@ -35,7 +35,7 @@ function onSent(idx) {
 // 누르기
 document.addEventListener('click', (e) => {
     const t = e.target.closest?.('.mbc-panel [data-mbc-act], .mbc-dock [data-mbc-act], .mbc-panel .mbc-opt[data-mbc-i]');
-    if (!t) { if ((ui.open || ui.sel) && !e.target.closest?.('#mbc-side')) { ui.open = false; ui.sel = null; ui.reroll = false; decorateAll(true); } return; }
+    if (!t) { if ((ui.open || ui.sel) && !e.target.closest?.('#mbc-side, #mbc-editdock')) { ui.open = false; ui.sel = null; ui.reroll = false; decorateAll(true); } return; }
     e.preventDefault(); e.stopPropagation();
     const panel = t.closest('.mbc-panel') ?? t.closest('.mbc-dock');
     const i = Number(panel.closest('.mes')?.getAttribute('mesid') ?? panel.dataset.i);
@@ -59,7 +59,12 @@ document.addEventListener('click', (e) => {
 
 // 다시 받기 입력: 적은 글 기억 · Enter로 받기
 document.addEventListener('input', (e) => { if (e.target.classList?.contains('mbc-rr-in')) ui.rerollText = e.target.value; }, true);
-document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.classList?.contains('mbc-rr-in')) { e.preventDefault(); e.target.closest('.mbc-panel')?.querySelector('[data-mbc-act="rerollGo"]')?.click(); } }, true);
+// 추가 지시 칸에서 친 키는 실리태번 단축키(← → 스와이프 등)로 새지 않게
+for (const ev of ['keydown', 'keyup', 'keypress']) document.addEventListener(ev, (e) => {
+    if (!e.target.classList?.contains('mbc-rr-in') && !e.target.closest?.('#mbc-editdock')) return;
+    if (ev === 'keydown' && e.key === 'Enter' && e.target.classList.contains('mbc-rr-in')) { e.preventDefault(); e.target.closest('.mbc-panel')?.querySelector('[data-mbc-act="rerollGo"]')?.click(); }
+    e.stopPropagation();
+}, true);
 
 // 확장 설정 칸: 한 줄 + 편집기 열기
 function renderSettings() {
