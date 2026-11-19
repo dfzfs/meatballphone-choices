@@ -1,5 +1,5 @@
 // 본편 주입 · 답에서 선택지 읽기 · 지난 선택지 옮기기 · 다시 받기 글
-import { settings, ctx, rng, pickW, kindOf, riskOf, kindsOn, risksOn, clamp, meta, userCount, lite, liteState, liteLuck, liteScene, liteMode, setExtra } from './core.js';
+import { settings, ctx, rng, pickW, kindOf, riskOf, kindsOn, risksOn, clamp, meta, isOn, userCount, lite, liteState, liteLuck, liteScene, liteMode, setExtra } from './core.js';
 import { RESULT } from './data.js';
 import * as DATA from './data.js';
 
@@ -54,7 +54,7 @@ function resultText(p) {
 
 export function buildPrompt(seed, pending) {
     const set = settings();
-    if (!set.enabled) return '';
+    if (!isOn()) return '';
     const plan = riskPlan(seed);
     const L = [];
     const res = resultText(pending);
@@ -84,7 +84,7 @@ export function pickBefore(type) {
 }
 export function onBeforeGen(type, _params, dryRun) {
     if (dryRun) return;
-    if (!settings().enabled || ['quiet', 'impersonate', 'continue'].includes(type)) { setInject(''); return; }
+    if (!isOn() || ['quiet', 'impersonate', 'continue'].includes(type)) { setInject(''); return; }
     const typed = (type === 'normal' || !type) && !!(document.getElementById('send_textarea')?.value ?? '').trim();
     const pending = typed ? (inputHas(meta().pending) ? meta().pending : null) : pickBefore(type);
     setInject(buildPrompt(userCount() + (typed ? 1 : 0), pending));

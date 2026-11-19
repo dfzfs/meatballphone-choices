@@ -1,5 +1,5 @@
 // 선택지 창: 지금 고를 수 있는 답엔 목록 · 지난 답엔 고른 것 하나만 칩
-import { settings, ctx, esc, meta, saveMeta, requestSave, isGenerating, kindOf, riskOf, kindsOn, risksOn, checkFor, rollCheck, userCount, lite, liteLuck, litePreview, setExtra } from './core.js';
+import { settings, ctx, esc, meta, isOn, saveMeta, requestSave, isGenerating, kindOf, riskOf, kindsOn, risksOn, checkFor, rollCheck, userCount, lite, liteLuck, litePreview, setExtra } from './core.js';
 import { choicesOf, NUM_RE, TAG_RE, setInject, buildPrompt, rerollPrompt } from './prompt.js';
 import { gst, guideOn, guideRows, guideItems, guideLabel, SECTIONS } from './guide.js';
 
@@ -115,7 +115,7 @@ export function drawPhonePanel(host) {
     if (!panel) { panel = document.createElement('div'); panel.className = 'mbc-panel live inphone'; host.append(panel); }
     if (panel.contains(document.activeElement) && document.activeElement.classList.contains('mbc-rr-in')) return true; // 추가 지시를 쓰는 중이면 그대로
     panel.dataset.i = String(i);
-    panel.innerHTML = !set.enabled ? '<div class="mbc-gempty"><span>선택지가 꺼져 있어요</span></div>'
+    panel.innerHTML = !isOn() ? '<div class="mbc-gempty"><span>선택지가 꺼져 있어요</span></div>'
         : !live ? '<div class="mbc-gempty"><span>AI 답이 오면 여기서 골라요</span></div>'
         : ui.gen ? '<div class="mbc-gempty"><span>답을 받는 중…</span></div>'
         : liveHTML(i, choicesOf(i) ?? []);
@@ -130,9 +130,9 @@ export function decorate(mesEl, lastAI, force = false) {
     if (!textEl || Number.isNaN(i)) return;
     const set = settings();
     const live = i === lastAI && !ctx().chat?.[i + 1];
-    let items = set.enabled ? choicesOf(i) : null;
+    let items = isOn() ? choicesOf(i) : null;
     let panel = mesEl.querySelector('.mbc-panel');
-    if (!items && !(live && set.enabled)) { panel?.remove(); return; }
+    if (!items && !(live && isOn())) { panel?.remove(); return; }
     if (items) stripRaw(textEl, items);
     if (inPhone() && (live || !set.pastChip)) { panel?.remove(); return; } // 📱 폰 안에서만: 지금 선택지는 폰 안에만 · 지난 선택 칩은 설정대로
     if (live && ui.gen) { panel?.remove(); return; } // 받는 중엔 그리지 않음
