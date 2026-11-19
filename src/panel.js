@@ -1,10 +1,10 @@
 // 선택지 창: 지금 고를 수 있는 답엔 목록 · 지난 답엔 고른 것 하나만 칩
 import { settings, ctx, esc, meta, saveMeta, kindOf, riskOf, kindsOn, risksOn, checkFor, rollCheck, userCount, lite, liteLuck, litePreview, setExtra } from './core.js';
 import { choicesOf, NUM_RE, TAG_RE, setInject, buildPrompt, rerollPrompt } from './prompt.js';
-import { guideHTML, gst } from './guide.js';
+import { gst, guideOn, guideRows, guideItems, guideLabel, SECTIONS } from './guide.js';
 
 const SLOT_SEL = '.ss-slot, .custom-ss-slot, .ml-msg';
-export const ui = { sel: null, past: new Set(), open: false, reroll: false, rerollText: '', rerolling: false, rolling: false, gen: false, guide: false, hover: false, hoverBlock: false, side: false };
+export const ui = { sel: null, past: new Set(), open: false, reroll: false, rerollText: '', rerolling: false, rolling: false, gen: false, tab: 'choices', hover: false, hoverBlock: false, side: false };
 
 const seedOf = (i, n) => `${ctx().chatId ?? ''}:${i}:${n}`;
 const badge = (r) => r.id === 'none' ? '' : `<span class="mbc-badge t-${r.tone}">${r.icon} ${esc(r.name)}</span>`;
@@ -35,20 +35,25 @@ function detailHTML(i, it, n) {
         <div class="mbc-d-go"><span class="mbc-dice" hidden></span><button class="mbc-go" data-mbc-act="go">이걸로 <span aria-hidden="true">›</span></button></div>
     </div>`;
 }
+// 탭: 🎯 선택지 · 🧭 진행 · 🔎 숨은 사실 · 🔮 스포 — 같은 자리, 같은 목록 모양
+export const TABS = () => [['choices', '🎯', '선택지'], ...guideOn().map(k => [k, SECTIONS[k].icon, SECTIONS[k].name])];
+const curTab = () => TABS().some(t => t[0] === ui.tab) ? ui.tab : 'choices';
 function liveHTML(i, items) {
-    const set = settings();
+    const set = settings(), tab = curTab();
     const ll = liteLuck();
-    const luck = ll?.rolled ? `<button class="mbc-chip" data-mbc-act="help" title="${esc(ll.text)}">🍀 ${ll.tier || '★'.repeat(ll.stars ?? 0)}</button>` : '';
-    const head = `<div class="mbc-head"><span class="mbc-title">무엇을 할까요</span>${luck}<span class="mbc-sp"></span>
+    const luck = ll?.rolled ? `<button class="mbc-chip" data-mbc-act="help" title="${esc(ll.text)}">🍀<span class="t"> ${ll.tier || '★'.repeat(ll.stars ?? 0)}</span></button>` : '';
+    const tabs = TABS().length > 1 ? `<div class="mbc-tabs">${TABS().map(([id, ic, nm]) => `<button class="mbc-tab${id === tab ? ' on' : ''}" data-mbc-act="tab" data-g="${id}">${ic}<span class="t"> ${nm}</span>${id !== 'choices' && guideItems(i, id).length ? ` <small>${guideItems(i, id).length}</small>` : ''}</button>`).join('')}</div>` : '<span class="mbc-title">무엇을 할까요</span>';
+    const head = `<div class="mbc-head">${tabs}<span class="mbc-sp"></span>${luck}
         <button class="mbc-chip" data-mbc-act="click" title="고르면 입력창에 넣을지 바로 보낼지 (눌러서 바꾸기)">${set.click === 'send' ? '➤<span class="t"> 바로 보내기</span>' : '↵<span class="t"> 입력창에</span>'}</button>
-        <button class="mbc-icon${ui.guide ? ' on' : ''}" data-mbc-act="guide" title="추천 (진행 · 사실 · 스포) — 누를 때만 AI 1회" aria-label="추천">🧭</button>
-        <button class="mbc-icon${ui.reroll ? ' on' : ''}" data-mbc-act="reroll" title="선택지만 다시 받기" aria-label="선택지만 다시 받기">🔄</button>
+        <button class="mbc-icon${ui.reroll ? ' on' : ''}" data-mbc-act="reroll" title="이 탭 다시 받기 (추가 지시 가능)" aria-label="다시 받기">🔄</button>
         <button class="mbc-icon" data-mbc-act="help" title="읽는 법" aria-label="읽는 법">ⓘ</button>
         <button class="mbc-icon" data-mbc-act="edit" title="설정" aria-label="설정">⚙</button></div>`;
-    const rr = ui.reroll ? `<div class="mbc-reroll"><input type="text" class="mbc-rr-in" placeholder="추가 지시 (비워도 돼요) · 예: 더 과감하게" value="${esc(ui.rerollText)}"><button class="mbc-go sm" data-mbc-act="rerollGo" ${ui.rerolling ? 'disabled' : ''}>${ui.rerolling ? '받는 중…' : '다시 받기'}</button></div>` : '';
+    const busy = tab === 'choices' ? ui.rerolling : !!gst.busy;
+    const rr = ui.reroll ? `<div class="mbc-reroll"><input type="text" class="mbc-rr-in" placeholder="추가 지시 (비워도 돼요) · 예: ${tab === 'facts' ? '인물 비밀 위주로' : tab === 'route' ? '로맨스 쪽으로' : '더 과감하게'}" value="${esc(ui.rerollText)}"><button class="mbc-go sm" data-mbc-act="rerollGo" ${busy ? 'disabled' : ''}>${busy ? '받는 중…' : '다시 받기'}</button></div>` : '';
+    if (tab !== 'choices') return `${head}${rr}${guideRows(i, tab)}`;
     const det = set.confirm && ui.sel?.i === i && items[ui.sel.n] ? detailHTML(i, items[ui.sel.n], ui.sel.n) : '';
     const list = items.length ? `<div class="mbc-list">${items.map((it, n) => optHTML(i, it, n)).join('')}</div>` : '<div class="mbc-gempty"><span>이 답엔 선택지가 없어요</span><button class="mbc-chip" data-mbc-act="reroll">🔄 선택지 받기</button></div>';
-    return `${head}${rr}${ui.guide ? guideHTML(i) : ''}${list}${det}`;
+    return `${head}${rr}${list}${det}`;
 }
 
 // ───── 지난 답: 고른 것 하나만 칩 (누르면 그때 선택지 전체 · 「여기서 다른 선택」) ─────
@@ -108,7 +113,7 @@ export function decorate(mesEl, lastAI, force = false) {
     const picked = live ? null : pickedFor(i);
     if (!live && (!picked || !items.length)) { panel?.remove(); return; } // 고르지 않고 직접 쓴 답이면 칩도 없음
     const typing = panel?.contains(document.activeElement) && document.activeElement.classList.contains('mbc-rr-in');
-    const key = JSON.stringify(live ? [items.map(x => x.label + x.kind + x.risk), ui.sel, ui.reroll, ui.rerolling, ui.guide, gst.busy, gst.tab, JSON.stringify(ctx().chat?.[i]?.extra?.mbcGuide ?? 0).length, settings().click, settings().confirm, liteLuck()?.stars ?? 0, settings()._rev] : [items.length, picked.n, picked.check?.roll, ui.past.has(i)]);
+    const key = JSON.stringify(live ? [items.map(x => x.label + x.kind + x.risk), ui.sel, ui.reroll, ui.rerolling, ui.tab, gst.busy, JSON.stringify(ctx().chat?.[i]?.extra?.mbcGuide ?? 0).length, settings().click, settings().confirm, liteLuck()?.stars ?? 0, settings()._rev] : [items.length, picked.n, picked.check?.roll, ui.past.has(i)]);
     if (!panel) panel = document.createElement('div');
     if (!typing && (force || panel.dataset.key !== key)) { panel.innerHTML = live ? liveHTML(i, items) : chipHTML(i, items, picked); panel.dataset.key = key; }
     panel.className = `mbc-panel ${live ? 'live' : 'done'}`;
@@ -208,6 +213,7 @@ export async function helpSheet() {
         <div class="mbc-sec">위험</div><div class="mbc-card">${risksOn().map(r => row(r.icon || '·', esc(r.name), esc(r.desc))).join('')}</div>
         <div class="mbc-sec">주사위</div><div class="mbc-card">${row('🎲', 'd20 + 보정 ≥ 난이도면 성공', '20은 늘 성공(대성공), 1은 늘 실패(대실패). 고르는 순간 굴려요.')}${row('🧮', '보정', lite() ? '미트볼 라이트의 능력치 · 욕구 위험 · 상태 딱지 · 장비 + 오늘 운세(🍀 +2 · ⚠ −2, 운에 맡기기는 두 배)' : '미트볼 라이트를 켜면 능력치 · 상태 · 운세가 들어가요. 지금은 보정 없음')}</div>
         ${lite() ? `<div class="mbc-sec">오늘 운세 · 미트볼 라이트</div><div class="mbc-card">${row('🍀', ll?.rolled ? esc(ll.text) : '아직 안 굴림', ll?.rolled ? '운세와 맞는 선택지 🍀 · 조심할 행동 ⚠' : '라이트 › 주사위에서 「오늘 운세 굴리기」를 하면 선택지에 🍀 · ⚠가 붙어요')}</div>` : ''}
+        <div class="mbc-sec">탭</div><div class="mbc-card">${row('🎯', '선택지', '매 턴 답과 함께 와요')}${guideOn().map(k => row(SECTIONS[k].icon, esc(SECTIONS[k].name), esc(SECTIONS[k].desc) + ' · 처음 누를 때 AI 1회')).join('')}</div>
         <div class="mbc-sec">지난 선택지</div><div class="mbc-card">${row('✔', '고른 것만 칩으로 남아요', '칩을 누르면 그때 선택지 전체를 볼 수 있고, 「여기서 다른 선택」으로 그 답에서 분기해 다시 고를 수 있어요. 지난 선택지는 AI에게 가지 않아요.')}</div>
     </div>`;
     const c = ctx(), el = document.createElement('div');
@@ -216,7 +222,7 @@ export async function helpSheet() {
 }
 
 // ───── 옆 「?」 동그라미 → 올리면 부채꼴 (보는 방식 「옆 동그라미」 · 넓은 화면만) ─────
-const sideOpen = () => ui.open || !!ui.sel || ui.reroll || ui.guide || ui.hover;
+const sideOpen = () => ui.open || !!ui.sel || ui.reroll || ui.hover;
 export function dropSide() { document.getElementById('mbc-side')?.remove(); }
 function sidePill(i, it, n) {
     const k = kindOf(it.kind) ?? { icon: '•', name: it.kind }, r = shownRisk(it.risk), ch = checkOf(i, it, n);
@@ -224,22 +230,32 @@ function sidePill(i, it, n) {
     return `<button class="mbc-opt ring${sel ? ' sel' : ''}" style="--k:${n}" title="${esc(it.label)}" data-mbc-i="${i}" data-mbc-n="${n}"><span class="mbc-kind"><span class="ic">${k.icon}</span></span><span class="mbc-ring-txt"><span class="mbc-ring-k">${esc(k.name)}${r.id !== 'none' ? ` · ${r.icon} ${esc(r.name)}` : ''}${ch ? ` · ${ch.pct}%` : ''}</span><span class="mbc-label">${esc(it.label)}</span></span></button>`;
 }
 function sideHTML(i, items) {
-    const set = settings();
-    const sel = ui.sel?.i === i ? items[ui.sel.n] : null;
+    const set = settings(), tab = curTab();
+    const sel = tab === 'choices' && ui.sel?.i === i ? items[ui.sel.n] : null;
     const ll = liteLuck();
-    const tools = `<div class="mbc-tools">${ll?.rolled ? `<button class="mbc-tool" data-mbc-act="help" title="${esc(ll.text)}">🍀</button>` : ''}<button class="mbc-tool${ui.guide ? ' on' : ''}" data-mbc-act="guide" title="추천 (진행 · 사실 · 스포)">🧭</button><button class="mbc-tool" data-mbc-act="click" title="${set.click === 'send' ? '고르면 바로 보내기' : '고르면 입력창에'} (눌러서 바꾸기)">${set.click === 'send' ? '➤' : '↵'}</button><button class="mbc-tool${ui.reroll ? ' on' : ''}" data-mbc-act="reroll" title="선택지만 다시 받기">🔄</button><button class="mbc-tool" data-mbc-act="help" title="읽는 법">ⓘ</button><button class="mbc-tool" data-mbc-act="edit" title="설정">⚙</button></div>`;
-    const card = ui.reroll ? `<div class="mbc-sidecard"><div class="mbc-reroll"><input type="text" class="mbc-rr-in" placeholder="추가 지시 (비워도 돼요)" value="${esc(ui.rerollText)}"><button class="mbc-go sm" data-mbc-act="rerollGo" ${ui.rerolling ? 'disabled' : ''}>${ui.rerolling ? '받는 중…' : '다시 받기'}</button></div></div>`
-        : ui.guide ? `<div class="mbc-sidecard">${guideHTML(i)}</div>`
+    const modes = TABS().length > 1 ? TABS().map(([id, ic, nm]) => `<button class="mbc-tool${id === tab ? ' on' : ''}" data-mbc-act="tab" data-g="${id}" title="${nm}">${ic}</button>`).join('') + '<i class="mbc-tsep"></i>' : '';
+    const tools = `<div class="mbc-tools">${modes}${ll?.rolled ? `<button class="mbc-tool" data-mbc-act="help" title="${esc(ll.text)}">🍀</button>` : ''}<button class="mbc-tool" data-mbc-act="click" title="${set.click === 'send' ? '고르면 바로 보내기' : '고르면 입력창에'} (눌러서 바꾸기)">${set.click === 'send' ? '➤' : '↵'}</button><button class="mbc-tool${ui.reroll ? ' on' : ''}" data-mbc-act="reroll" title="이 탭 다시 받기">🔄</button><button class="mbc-tool" data-mbc-act="help" title="읽는 법">ⓘ</button><button class="mbc-tool" data-mbc-act="edit" title="설정">⚙</button></div>`;
+    const busy = tab === 'choices' ? ui.rerolling : !!gst.busy;
+    const card = ui.reroll ? `<div class="mbc-sidecard"><div class="mbc-reroll"><input type="text" class="mbc-rr-in" placeholder="추가 지시 (비워도 돼요)" value="${esc(ui.rerollText)}"><button class="mbc-go sm" data-mbc-act="rerollGo" ${busy ? 'disabled' : ''}>${busy ? '받는 중…' : '다시 받기'}</button></div></div>`
         : sel && set.confirm ? `<div class="mbc-sidecard">${detailHTML(i, sel, ui.sel.n)}</div>` : '';
-    const hub = `<button class="mbc-sidehub" data-mbc-act="dock" title="선택지 ${items.length}개"><b>${sel ? kindOf(sel.kind)?.icon ?? '?' : '?'}</b><small>${items.length}</small></button>`;
-    return `<div class="mbc-scrim"></div>${tools}<div class="mbc-fan">${items.map((it, n) => sidePill(i, it, n)).join('')}</div>${hub}${card}`;
+    let pills;
+    if (tab === 'choices') pills = items.map((it, n) => sidePill(i, it, n));
+    else {
+        const list = guideItems(i, tab), S = SECTIONS[tab];
+        pills = gst.busy ? [`<button class="mbc-opt ring" style="--k:0" disabled><span class="mbc-kind"><span class="ic">${S.icon}</span></span><span class="mbc-ring-txt"><span class="mbc-label">받는 중…</span></span></button>`]
+            : list.length ? list.map((x, n) => `<div class="mbc-opt ring ro" style="--k:${n}" title="${esc(guideLabel(tab, x))}"><span class="mbc-kind"><span class="ic">${S.icon}</span></span><span class="mbc-ring-txt"><span class="mbc-ring-k">${S.name}</span><span class="mbc-label">${esc(guideLabel(tab, x))}</span></span></div>`)
+            : [`<button class="mbc-opt ring" style="--k:0" data-mbc-act="guideGo" data-g="${tab}"><span class="mbc-kind"><span class="ic">${S.icon}</span></span><span class="mbc-ring-txt"><span class="mbc-ring-k">${S.name}</span><span class="mbc-label">받기 (AI 1회)</span></span></button>`];
+    }
+    const tabIc = TABS().find(t => t[0] === tab)?.[1] ?? '?';
+    const hub = `<button class="mbc-sidehub" data-mbc-act="dock" title="${tab === 'choices' ? `선택지 ${items.length}개` : SECTIONS[tab].name}"><b>${sel ? kindOf(sel.kind)?.icon ?? '?' : tab === 'choices' ? '?' : tabIc}</b><small>${tab === 'choices' ? items.length : guideItems(i, tab).length || ''}</small></button>`;
+    return `<div class="mbc-scrim"></div>${tools}<div class="mbc-fan">${pills.join('')}</div>${hub}${card}`;
 }
 function renderSide(i, items) {
     ui.side = true;
     let el = document.getElementById('mbc-side');
     if (!el) { el = document.createElement('div'); el.id = 'mbc-side'; document.body.append(el); wireSide(el); }
     const typing = el.contains(document.activeElement) && document.activeElement.classList.contains('mbc-rr-in');
-    const key = JSON.stringify([i, items.map(x => x.label + x.kind + x.risk), ui.sel, ui.reroll, ui.rerolling, ui.guide, gst.busy, gst.tab, JSON.stringify(ctx().chat?.[i]?.extra?.mbcGuide ?? 0).length, settings().click, settings()._rev]);
+    const key = JSON.stringify([i, items.map(x => x.label + x.kind + x.risk), ui.sel, ui.reroll, ui.rerolling, ui.tab, gst.busy, JSON.stringify(ctx().chat?.[i]?.extra?.mbcGuide ?? 0).length, settings().click, settings()._rev]);
     if (!typing && el.dataset.key !== key) { el.innerHTML = sideHTML(i, items); el.dataset.key = key; }
     el.dataset.i = String(i);
     el.className = `mbc-panel mbc-side${sideOpen() ? ' open' : ''}${ui.sel?.i === i ? ' has-sel' : ''}`;
@@ -257,7 +273,7 @@ export function placeSide() {
     else if (roomL >= 64) { x = c.left - Math.min(roomL / 2, 48); dir = 'right'; }
     else x = c.right - 40;
     const y = Math.max(c.top + 48, Math.min((mes ? mes.bottom : c.bottom) - 48, c.bottom - 48));
-    el.style.left = `${Math.round(x)}px`; el.style.top = `${Math.round(y)}px`; el.dataset.dir = dir; el.dataset.cardUp = window.innerHeight - y < 330 ? '1' : ''; el.dataset.toolsDown = y - c.top < 210 ? '1' : ''; // 위가 좁으면 단추 줄을 아래로
+    el.style.left = `${Math.round(x)}px`; el.style.top = `${Math.round(y)}px`; el.dataset.dir = dir; el.dataset.cardUp = window.innerHeight - y < 330 ? '1' : ''; el.dataset.toolsDown = y - c.top < el.querySelectorAll('.mbc-tools > *').length * 32 + 40 ? '1' : ''; // 위가 좁으면 단추 줄을 아래로
     if (!el.dataset.solid) { // 반투명 테마여도 알약은 불투명
         const v = getComputedStyle(document.documentElement).getPropertyValue('--SmartThemeBlurTintColor').trim().match(/rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/);
         if (v) el.style.setProperty('--solid', `rgb(${v[1]}, ${v[2]}, ${v[3]})`);

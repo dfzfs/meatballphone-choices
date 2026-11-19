@@ -158,22 +158,19 @@
 .mbc-ring-k { font-size: 10px; font-weight: 700; color: var(--a); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mbc-side .mbc-opt.ring .mbc-label { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
 .mbc-side .mbc-opt.ring .mbc-kind { width: 24px; justify-content: center; }
-.mbc-side .mbc-sidecard .mbc-guide { padding: 10px; border-radius: var(--r); border: 1px solid var(--line); background: var(--solid, #23252b); box-shadow: 0 10px 30px rgba(0, 0, 0, .35); margin: 0; }
 
-/* ───── 🧭 추천 ───── */
-.mbc-guide { margin-bottom: 8px; padding: 10px; border-radius: var(--r); border: var(--bd) solid var(--line); background: var(--bg); }
-.mbc-gtabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
-.mbc-gtab { min-height: 30px; padding: 2px 10px; border-radius: 99px; border: var(--bd) solid var(--line); background: transparent; cursor: pointer; font-size: .82em; }
-.mbc-gtab small { color: var(--sub); }
-.mbc-gtab.on { background: var(--a); border-color: var(--a); color: #fff !important; }
-.mbc-gtab.on small { color: inherit; opacity: .8; }
-.mbc-gbody { display: grid; gap: 6px; }
-.mbc-gitem { display: grid; gap: 2px; width: 100%; padding: 8px 10px; text-align: left; border-radius: var(--r); border: var(--bd) solid var(--line); background: var(--card); cursor: pointer; }
-.mbc-gitem:hover { border-color: var(--a); }
-.mbc-gitem b { font-size: .9em; } .mbc-gitem small { font-size: .78em; color: var(--sub); }
-.mbc-facts { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: .88em; }
-.mbc-gfoot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-.mbc-gfoot small { flex: 1; font-size: .74em; color: var(--sub); }
+/* ───── 탭: 🎯 선택지 · 🧭 진행 · 🔎 숨은 사실 · 🔮 스포 ───── */
+.mbc-tabs { display: flex; gap: 2px; padding: 2px; border-radius: 99px; background: var(--line); }
+.mbc-tab { min-height: 30px; padding: 2px 10px; border-radius: 99px; border: 0; background: transparent; cursor: pointer; font-size: .82em; white-space: nowrap; }
+.mbc-tab small { color: var(--sub); }
+.mbc-tab.on { background: var(--a); color: #fff !important; font-weight: 700; }
+.mbc-tab.on small { color: inherit; opacity: .8; }
+.mbc-opt { box-sizing: border-box; }
+.mbc-opt.g { min-height: 0; padding: 8px 12px; gap: 10px; }
+.mbc-opt.g .mbc-kind { width: auto; }
+.mbc-opt.ro { cursor: default; } .mbc-opt.ro:hover { border-color: var(--line); } /* 진행 · 숨은 사실 · 스포는 보여 주기만 */
+.mbc-side .mbc-opt.ring.ro:hover:not(:disabled) { border-color: var(--line); }
+.mbc-tsep { display: block; height: 4px; }
 .mbc-gempty { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 2px; font-size: .85em; color: var(--sub); flex-wrap: wrap; }
 
 /* 위가 좁을 때: 단추 줄은 동그라미 아래 · 카드는 단추 줄을 피해서 */
@@ -183,8 +180,9 @@
 
 @media (max-width: 600px) {
     .mbc-panel.live { padding: 10px 8px; }
+    .mbc-tab:not(.on) .t { display: none; }
+    .mbc-head { flex-wrap: wrap; }
     .mbc-head .mbc-chip .t { display: none; }
-    .mbc-head { flex-wrap: nowrap; }
     .mbc-title { white-space: nowrap; }
     .mbc-opt { flex-wrap: wrap; gap: 4px 8px; }
     .mbc-kind { width: auto; }
