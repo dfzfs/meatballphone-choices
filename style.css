@@ -383,3 +383,6 @@ body.mbc-fx-tilt #chat { transform: rotate(calc(.35deg * var(--mbc-k, 1))); }
 .mbc-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); overflow: visible; scroll-snap-type: none; padding: 4px 0 0; gap: 8px; }
 .mbc-opt.card { flex: none; min-height: 132px; padding: 10px; gap: 6px; }
 .mbc-opt.card .mbc-kind .ic { font-size: 1.5em; }
+.mbc-side .mbc-timer { position: absolute; left: -22px; top: 28px; width: 44px; margin: 0; }
+.mbc-side .mbc-dice.floating { right: auto; bottom: auto; left: 0; top: 30px; transform: translateX(-100%); white-space: nowrap; font-size: 13px; }
+.mbc-panel.mbc-side { z-index: 35; }

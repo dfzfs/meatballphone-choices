@@ -6,7 +6,7 @@ import { panelFx, stamp, timerFx } from './fx.js';
 
 const SLOT_SEL = '.ss-slot, .custom-ss-slot, .ml-msg';
 const STAGE_KO = ['평온', '불안', '위험', '파국'];
-export const ui = { sel: null, group: null, rolling: false, open: false, reroll: false, rerollText: '', rerolling: false, hover: false, hoverBlock: false }; // 지금 고른 칸 · 열어 둔 묶음
+export const ui = { sel: null, group: null, rolling: false, open: false, reroll: false, rerollText: '', rerolling: false, hover: false, hoverBlock: false, gen: false }; // 지금 고른 칸 · 열어 둔 묶음
 
 // 위험 딱지 (보이는 모양: 그대로 · 숨김 · 안전으로 위장). 지난 선택지는 진짜를 보여 준다
 function riskView(id, reveal) {
@@ -141,7 +141,7 @@ export function panelHTML(i, items, live, picked, width) {
 const norm = (s) => String(s ?? '').replace(/<\/?choices>/gi, '').replace(NUM_RE, '').replace(TAG_RE, '').replace(/\s+/g, '').toLowerCase();
 function stripRaw(textEl, items) {
     textEl.querySelectorAll('choices, .custom-choices').forEach(e => e.remove());
-    const keys = new Set(items.flatMap(it => [norm(it.label), norm(it.raw)]).filter(Boolean));
+    const keys = new Set(items.flatMap(it => [norm(it.label), norm(it.raw), norm(it.orig), norm(it.origRaw)]).filter(Boolean));
     const isLine = (s) => { const n = norm(s); return !n || keys.has(n); };
     for (const el of [...textEl.querySelectorAll(':scope > p, :scope > ol, :scope > ul, :scope > div:not(.mbc-panel):not(.ss-slot):not(.custom-ss-slot), :scope > pre')]) {
         if (el.closest('.mbc-panel') || el.matches(SLOT_SEL)) continue;
@@ -180,6 +180,7 @@ export function decorate(mesEl, lastAI, force = false) {
     if (!items) { panel?.remove(); mesEl.querySelector(':scope > .mbc-dock')?.remove(); return; }
     stripRaw(textEl, items);
     const live = i === lastAI && !ctx().chat?.[i + 1];
+    if (live && ui.gen) { panel?.remove(); return; } // 받는 중엔 반쯤 온 선택지를 그리지 않음
     const picked = pickedFor(i);
     // 지난 선택지: 고른 것만 칩으로 · 아니면 지우기
     if (!live) {
@@ -383,6 +384,7 @@ export function placeSide() {
     const el = document.getElementById('mbc-side'); if (!el) return;
     const chatEl = document.getElementById('chat'); if (!chatEl) return;
     const c = chatEl.getBoundingClientRect();
+    el.style.display = c.width < 50 || c.height < 50 || chatEl.offsetParent === null ? 'none' : '';
     const mes = document.querySelector(`#chat .mes[mesid="${el.dataset.i}"]`)?.getBoundingClientRect();
     const roomR = window.innerWidth - c.right, roomL = c.left;
     let x, dir = 'left';
@@ -422,8 +424,9 @@ let sideT = 0;
 function wireSide(el) {
     el.addEventListener('mouseenter', () => { clearTimeout(sideT); if (!ui.hover && !ui.hoverBlock) { ui.hover = true; el.classList.add('open'); } });
     el.addEventListener('mouseleave', () => { clearTimeout(sideT); ui.hoverBlock = false; sideT = setTimeout(() => { ui.hover = false; if (!sideOpen()) el.classList.remove('open'); }, 350); });
+    if (wireSide.done) return; wireSide.done = true;
     let raf = 0;
     const re = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { placeSide(); import('./editor.js').then(m => m.placeEditDock()); }); };
-    document.getElementById('chat')?.addEventListener('scroll', re, { passive: true });
+    document.addEventListener('scroll', (e) => { if (e.target?.id === 'chat') re(); }, { passive: true, capture: true });
     window.addEventListener('resize', re, { passive: true });
 }
