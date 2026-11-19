@@ -1,4 +1,4 @@
-// 미트볼 선택지 — 답 끝의 선택지를 고르기 쉬운 목록으로. 미트볼 라이트 칩 위에 붙는다.
+// 미트볼폰 선택지 — 답 끝의 선택지를 고르기 쉬운 목록으로. 미트볼폰 칩 위에 붙는다.
 // 저장: 선택지 블록은 그 AI 메시지(스와이프마다) extra · 고른 기록은 그다음 사용자 메시지 extra. 따로 쌓는 기록 없음.
 import { settings, ctx, meta, userCount, LOG, liteClear, setExtra, lite, requestSave, afterReply, genStarted, genEnded, isGenerating } from './src/core.js';
 import { onBeforeGen, setInject, buildPrompt, stripOld, tuck } from './src/prompt.js';
@@ -92,7 +92,7 @@ for (const ev of ['keydown', 'keyup', 'keypress']) document.addEventListener(ev,
 function renderSettings() {
     const el = document.createElement('div');
     el.className = 'mbc-settings';
-    el.innerHTML = `<div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>미트볼 선택지</b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
+    el.innerHTML = `<div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>미트볼폰 선택지</b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
         <div class="inline-drawer-content"><label class="checkbox_label"><input type="checkbox" data-mbc-on ${settings().enabled ? 'checked' : ''}> 사용</label>
         <div class="mbc-btns"><button class="menu_button" data-mbc-open>⚙ 선택지 설정</button><button class="menu_button" data-mbc-help>ⓘ 읽는 법</button></div></div></div>`;
     el.querySelector('[data-mbc-on]').addEventListener('change', (e) => { settings().enabled = e.target.checked; ctx().saveSettingsDebounced(); if (!e.target.checked) setInject(''); decorateAll(false, true); });

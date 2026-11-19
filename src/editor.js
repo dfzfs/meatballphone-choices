@@ -28,7 +28,7 @@ function body() {
     <div class="mbc-sec">성향</div><div class="mbc-card">${KINDS.map(k => row(`${k.icon} ${esc(k.name)}`, esc(k.desc), sw(`kinds.${k.id}`, s.kinds[k.id] !== false))).join('')}</div>
     <div class="mbc-sec">위험</div><div class="mbc-card">${RISKS.map(r => row(`${r.icon || '·'} ${esc(r.name)}${r.off ? ' <small>(기본 끔)</small>' : ''}`, esc(r.desc), sw(`risks.${r.id}`, s.risks[r.id] === true || (s.risks[r.id] !== false && !r.off)))).join('')}</div>
     <div class="mbc-sec">본편에 넣는 글</div><div class="mbc-card">
-        ${row(`매 턴 약 ${injectTokens()}토큰`, lite() ? `그중 라이트 장면 줄 약 ${sceneTokens()}토큰 · 고른 다음 턴만 결과 지시가 더 붙어요` : '고른 다음 턴만 결과 지시가 더 붙어요', '<button type="button" class="mbc-btn" data-act="peek">보기</button>')}
+        ${row(`매 턴 약 ${injectTokens()}토큰`, lite() ? `그중 미트볼폰 장면 줄 약 ${sceneTokens()}토큰 · 고른 다음 턴만 결과 지시가 더 붙어요` : '고른 다음 턴만 결과 지시가 더 붙어요', '<button type="button" class="mbc-btn" data-act="peek">보기</button>')}
         ${row('주입 깊이', '숫자가 작을수록 AI가 잘 지켜요', seg('depth', s.depth, [0, 1, 2, 4].map(n => [n, String(n)])))}
     </div>`;
 }

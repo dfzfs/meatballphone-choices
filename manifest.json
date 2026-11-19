@@ -1,5 +1,5 @@
 {
-    "display_name": "미트볼 선택지 (Meatball Choices)",
+    "display_name": "미트볼폰 선택지 (Meatball Phone Choices)",
     "loading_order": 25,
     "requires": [],
     "optional": [],
@@ -7,7 +7,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "dfzfs",
-    "version": "0.6.0",
-    "homePage": "https://github.com/dfzfs/meatball-lite-choices",
+    "version": "0.7.0",
+    "homePage": "https://github.com/dfzfs/meatballphone-choices",
     "auto_update": true
 }

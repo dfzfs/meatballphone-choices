@@ -70,7 +70,7 @@ export function buildPrompt(seed, pending) {
     return L.join('\n');
 }
 export function setInject(text) {
-    try { ctx().setExtensionPrompt(INJECT_KEY, text ?? '', 1, clamp(Number(settings().depth) || 0, 0, 10), false, 0); } catch (e) { console.warn('[미트볼 선택지]', e); }
+    try { ctx().setExtensionPrompt(INJECT_KEY, text ?? '', 1, clamp(Number(settings().depth) || 0, 0, 10), false, 0); } catch (e) { console.warn('[미트볼폰 선택지]', e); }
 }
 export const injectTokens = () => Math.round(buildPrompt(userCount() + 1, null).length / 3.2); // 눌러야 받는 모드면 0
 export const sceneTokens = () => Math.round(sceneLine().length / 3.2);

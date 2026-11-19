@@ -41,16 +41,16 @@ async function quietGen(prompt) {
 export const gst = { busy: null, tab: null }; // 받는 중인 칸 · 펼친 칸
 export async function fetchGuide(i, only = null, extra = '') {
     const m = ctx().chat?.[i]; if (!m || gst.busy) return;
-    if (isGenerating()) { toastr.info('답을 받는 중이에요. 끝난 뒤에 받아 주세요.', '미트볼 선택지'); return; }
+    if (isGenerating()) { toastr.info('답을 받는 중이에요. 끝난 뒤에 받아 주세요.', '미트볼폰 선택지'); return; }
     const secs = only ? [only] : guideOn();
-    if (!secs.length) { toastr.info('설정에서 받을 칸을 하나 이상 켜 주세요.', '미트볼 선택지'); return; }
+    if (!secs.length) { toastr.info('설정에서 받을 칸을 하나 이상 켜 주세요.', '미트볼폰 선택지'); return; }
     gst.busy = only ?? 'all';
     try {
         const got = parseGuide(String(await quietGen(guidePrompt(only, extra)) ?? ''), secs);
         if (!Object.values(got).some(a => a?.length)) throw new Error('추천을 못 받았어요');
         setExtra(m, { mbcGuide: { ...(m.extra?.mbcGuide ?? {}), ...got } });
         requestSave();
-    } catch (e) { toastr.error(String(e?.message ?? e), '미트볼 선택지'); }
+    } catch (e) { toastr.error(String(e?.message ?? e), '미트볼폰 선택지'); }
     finally { gst.busy = null; }
 }
 

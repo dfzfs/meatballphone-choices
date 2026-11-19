@@ -1,4 +1,4 @@
-/* 미트볼 선택지 — 미트볼 라이트 CSS 변수를 따른다 (없으면 실리태번 기본 색) */
+/* 미트볼폰 선택지 — 미트볼폰 CSS 변수를 따른다 (없으면 실리태번 기본 색) */
 .mbc-panel, .mbc-ed, .mbc-sheet {
     --a: var(--ml-accent, var(--SmartThemeQuoteColor, #e07a5f));
     --fg: var(--SmartThemeBodyColor, #222);

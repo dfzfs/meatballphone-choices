@@ -1,8 +1,8 @@
-// 설정 · 채팅 기록 · 미트볼 라이트 읽기 · 주사위
+// 설정 · 채팅 기록 · 미트볼폰 읽기 · 주사위
 import { KINDS, RISKS, DCS } from './data.js';
 
 export const MODULE = 'mbChoices';
-export const LOG = '[미트볼 선택지]';
+export const LOG = '[미트볼폰 선택지]';
 export const ctx = () => SillyTavern.getContext();
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -99,8 +99,8 @@ export function rng(seed) {
 }
 export const pickW = (r, list, wOf) => { const t = list.reduce((a, x) => a + Math.max(0, wOf(x)), 0); if (t <= 0) return list[0]; let x = r() * t; return list.find(it => (x -= Math.max(0, wOf(it))) < 0) ?? list[list.length - 1]; };
 
-// ───── 미트볼 라이트 (읽기만) ─────
-export function lite() { try { const L = globalThis.MeatballLite; return L && (L.ready?.() ?? true) ? L : null; } catch { return null; } }
+// ───── 미트볼폰 (읽기만) ─────
+export function lite() { try { const L = globalThis.MeatballPhone ?? globalThis.MeatballLite; return L && (L.ready?.() ?? true) ? L : null; } catch { return null; } }
 const call = (fn, ...a) => { try { return fn?.(...a) ?? null; } catch { return null; } };
 let _st = null, _stAt = 0;
 export function liteState() {
