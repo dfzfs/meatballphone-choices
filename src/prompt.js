@@ -107,7 +107,9 @@ export function parseBlock(text) {
             if (kind || risk) t = t.replace(TAG_RE, '');
         }
         t = t.replace(NUM_RE, '').trim();
-        if (t) items.push({ kind, risk, label: t, raw });
+        let gloss = null;
+        const gi = t.indexOf('||'); if (gi >= 0) { gloss = t.slice(gi + 2).trim() || null; t = t.slice(0, gi).trim(); }
+        if (t) items.push({ kind, risk, label: t, gloss, raw });
     }
     return items.length ? items.slice(0, 12) : null;
 }
@@ -121,8 +123,36 @@ export function choicesOf(i) {
     const plan = need ? planFor(userCount(i), 0) : { kinds: [], risks: [] };
     return shown.map((it, k) => ({
         ...it,
+        label: it.gloss ?? it.label,
+        orig: raw?.[k]?.label ?? it.label, // 입력창에 넣을 원문 (번역 전)
         kind: it.kind ?? raw?.[k]?.kind ?? plan.kinds[k] ?? 'rational',
         risk: it.risk ?? raw?.[k]?.risk ?? plan.risks[k] ?? 'none',
     }));
 }
 export { NUM_RE, TAG_RE };
+
+// ───── 🔄 선택지만 다시 받기 (추가 지시 가능 · AI 1회) ─────
+export function rerollPrompt(i, prev, extra, gloss) {
+    const set = settings();
+    const k = (ctx().chat?.[i]?.extra?.mbcRe ?? 0) + 1;
+    const stage = set.danger.on ? stageOf(heatAt(i + 1)) : 0;
+    const plan = planFor(`${userCount(i)}:r${k}`, stage);
+    const usedK = set.kindMode === 'plan' ? [...new Set(plan.kinds)].map(kindOf).filter(Boolean) : set.kinds.filter(x => x.on && x.w > 0);
+    const usedR = [...new Set(plan.risks)].map(riskOf).filter(r => r && r.id !== 'none');
+    const L = [
+        "[TASK] Do NOT continue the story. Write fresh options for {{user}}'s next action at this exact moment (right after the last reply).",
+        `Output ONLY a <choices>…</choices> block with exactly ${plan.n} lines, each formatted: [kind|risk] option text — in the same language as the story.`,
+        set.kindMode === 'plan' ? `Slots in this order: ${plan.kinds.map((x, j) => `[${x}|${plan.risks[j]}]`).join(' ')}.` : `Risks in this order: ${plan.risks.map(r => `[${r}]`).join(' ')}. Choose the kind that best fits each option (each kind at most once).`,
+        'Kinds: ' + usedK.map(x => `${x.id} = ${x.ai}`).join('; ') + '.',
+    ];
+    if (usedR.length) L.push('Risks: ' + usedR.map(r => `${r.id} = ${r.ai}`).join('; ') + '; none = ordinary stakes.');
+    if (prev?.length) L.push(`Do not repeat these earlier options: ${prev.map(x => `"${x}"`).join(', ')}.`);
+    if (extra) L.push(`Player's extra direction for these options: ${extra}`);
+    if (gloss) L.push('After each option add " || " and a natural Korean translation of it.');
+    L.push('Each option: one short, concrete action (under ~50 characters).');
+    return L.join('\n');
+}
+// 지난 <choices> 블록을 AI에게 가는 글에서 빼기 (예시 블록은 남김)
+export function stripOld(text) {
+    return String(text ?? '').replace(/<choices>[ \t]*\n[\s\S]*?<\/choices>/gi, (m, off, all) => /Example:\s*$/.test(all.slice(Math.max(0, off - 16), off)) ? m : '');
+}

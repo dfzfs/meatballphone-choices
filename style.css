@@ -294,3 +294,48 @@ body.mbc-fx-tilt #chat { transform: rotate(calc(.35deg * var(--mbc-k, 1))); }
 .mbc-opt.ring .mbc-label { -webkit-line-clamp: 2; }
 .mbc-panel.mbc-mini { padding: 4px 12px; margin: 8px 0 4px; font-size: var(--t-m); opacity: .7; box-shadow: none; }
 .mbc-mini-k { font-size: var(--t-s); color: var(--sub); font-weight: 700; margin-right: 4px; }
+
+/* ───── 떠 있는 고리 메뉴 (답 오른쪽 아래 단추 → 펼침) ───── */
+.mbc-dock { position: absolute; right: 12px; bottom: -18px; z-index: 30; }
+.mbc-hubbtn {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 14px 4px 6px; border-radius: 99px; cursor: pointer;
+    background: var(--SmartThemeBlurTintColor, #23252b); color: var(--SmartThemeBodyColor, #e6e4df); border: 1px solid color-mix(in srgb, var(--mbc-accent, #5aa9a0) 60%, transparent);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .25); font: inherit; font-size: .85em; transition: transform .15s;
+}
+.mbc-hubbtn .ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--mbc-accent, #5aa9a0); color: #fff; font-size: 1.05em; animation: mbc-breathe 2.6s ease-in-out infinite; }
+@keyframes mbc-breathe { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--mbc-accent, #5aa9a0) 25%, transparent); } }
+.mbc-dock:hover .mbc-hubbtn, .mbc-dock.open .mbc-hubbtn { transform: scale(1.04); }
+.mbc-panel.mbc-pop {
+    position: absolute; right: 0; bottom: 48px; width: min(560px, 86vw); margin: 0; padding: 12px;
+    opacity: 0; visibility: hidden; transform: translateY(8px) scale(.96); transform-origin: bottom right;
+    transition: opacity .18s, transform .18s, visibility 0s .18s; box-shadow: 0 16px 40px rgba(0, 0, 0, .35);
+}
+.mbc-dock:hover .mbc-pop, .mbc-dock.open .mbc-pop { opacity: 1; visibility: visible; transform: none; transition: opacity .18s, transform .18s; }
+.mbc-dock::before { content: ''; position: absolute; right: 0; bottom: 36px; width: min(560px, 86vw); height: 16px; } /* 단추→창 사이 틈에서 닫히지 않게 */
+.mbc-pop .mbc-head { margin-bottom: 4px; }
+.mbc-pop .mbc-ring { height: 296px; --rx: 31%; --ry: 108px; }
+.mbc-pop .mbc-ring.n2, .mbc-pop .mbc-ring.n3, .mbc-pop .mbc-ring.n4 { height: 250px; --ry: 86px; }
+.mbc-pop .mbc-hub { width: 84px; height: 84px; }
+.mbc-pop .mbc-hub b { font-size: 1.4em; }
+.mbc-pop .mbc-opt.ring { width: 198px; padding: 6px 10px 6px 6px; }
+.mbc-pop .mbc-opt.ring .mbc-label { font-size: var(--t-s); }
+.mbc-pop .mbc-opt.mbc-group { width: 118px; }
+.mbc-pop .mbc-detail { margin-top: 4px; }
+
+/* 고리 알약: 성향 이름 줄 + 글 */
+.mbc-ring-txt { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.mbc-ring-k { font-size: calc(.7em * var(--mbc-fs, 1)); font-weight: 700; color: var(--g-act); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mbc-opt[data-group="think"] .mbc-ring-k { color: var(--g-think); } .mbc-opt[data-group="heart"] .mbc-ring-k { color: var(--g-heart); }
+.mbc-opt[data-group="want"] .mbc-ring-k { color: var(--g-want); } .mbc-opt[data-group="mischief"] .mbc-ring-k { color: var(--g-mischief); }
+.mbc-opt[data-group="weird"] .mbc-ring-k { color: var(--g-weird); }
+.mbc-opt.ring .mbc-tags { display: none; } /* 위험 · 확률은 이름 줄에 */
+
+/* 머리줄 단추 · 다시 받기 */
+.mbc-send { cursor: pointer; }
+.mbc-icon.on { border-color: var(--a); background: color-mix(in srgb, var(--a) 18%, var(--card)); }
+.mbc-reroll { display: flex; gap: 8px; margin: 0 0 12px; }
+.mbc-rr-in { flex: 1; min-width: 0; min-height: 40px; padding: 4px 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--card); color: var(--fg); font: inherit; font-size: var(--t-m); }
+.mbc-go.sm { min-height: 40px; padding: 4px 16px; font-size: var(--t-m); }
+.mbc-go:disabled { opacity: .6; cursor: progress; }
+.mbc-dock.down .mbc-pop { bottom: auto; top: 48px; transform-origin: top right; }
+.mbc-dock.down::before { bottom: auto; top: 36px; }

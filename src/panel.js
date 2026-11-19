@@ -1,12 +1,12 @@
 // 선택지 창: 고리 메뉴(생활 시뮬풍) · 목록 · 카드 + 자세히 보기 + 주사위 + 안내
 import { settings, ctx, esc, meta, saveMeta, kindOf, riskOf, heatAt, stageOf, todayLuck, mbState, urgentNeeds, checkFor, rollCheck, userCount, lite, liteLuck } from './core.js';
 import { GROUPS, FX } from './data.js';
-import { choicesOf, NUM_RE, TAG_RE, setInject, buildPrompt } from './prompt.js';
+import { choicesOf, NUM_RE, TAG_RE, setInject, buildPrompt, rerollPrompt } from './prompt.js';
 import { panelFx, stamp, timerFx } from './fx.js';
 
 const SLOT_SEL = '.ss-slot, .custom-ss-slot, .ml-msg';
 const STAGE_KO = ['평온', '불안', '위험', '파국'];
-export const ui = { sel: null, group: null, rolling: false }; // 지금 고른 칸 · 열어 둔 묶음
+export const ui = { sel: null, group: null, rolling: false, open: false, reroll: false, rerollText: '', rerolling: false }; // 지금 고른 칸 · 열어 둔 묶음
 
 // 위험 딱지 (보이는 모양: 그대로 · 숨김 · 안전으로 위장). 지난 선택지는 진짜를 보여 준다
 function riskView(id, reveal) {
@@ -49,8 +49,8 @@ function headHTML(i, live, count) {
     return `<div class="mbc-head">
         <span class="mbc-title">${live ? '무엇을 할까요' : '지난 선택'}<small>${count}</small></span>
         <span class="mbc-chips">${chips.join('')}</span>${heat}
-        ${live ? `<button class="mbc-icon" data-mbc-act="help" title="읽는 법" aria-label="읽는 법">ⓘ</button><button class="mbc-icon" data-mbc-act="edit" title="선택지 설정" aria-label="선택지 설정">⚙</button>` : ''}
-    </div>`;
+        ${live ? `<button class="mbc-chip mbc-send" data-mbc-act="click" title="고르면 입력창에 넣을지, 바로 보낼지">${set.click === 'send' ? '➤ 바로 보내기' : '↵ 입력창에'}</button><button class="mbc-icon${ui.reroll ? ' on' : ''}" data-mbc-act="reroll" title="선택지 다시 받기" aria-label="선택지 다시 받기">🔄</button><button class="mbc-icon" data-mbc-act="help" title="읽는 법" aria-label="읽는 법">ⓘ</button><button class="mbc-icon" data-mbc-act="edit" title="선택지 설정" aria-label="선택지 설정">⚙</button>` : ''}
+    </div>${live && ui.reroll ? `<div class="mbc-reroll"><input type="text" class="mbc-rr-in" placeholder="추가 지시 (비워도 돼요) · 예: 더 위험하게, 로맨스 쪽으로" value="${esc(ui.rerollText)}"><button class="mbc-go sm" data-mbc-act="rerollGo" ${ui.rerolling ? 'disabled' : ''}>${ui.rerolling ? '받는 중…' : '다시 받기'}</button></div>` : ''}`;
 }
 
 function optHTML(i, it, n, live, picked, cls = '') {
@@ -73,8 +73,8 @@ function optHTML(i, it, n, live, picked, cls = '') {
     }
     return `<button class="mbc-opt ${cls}${mine ? ' mine' : ''}${sel ? ' sel' : ''}" data-mbc-i="${i}" data-mbc-n="${n}" data-kind="${esc(it.kind)}" data-risk="${esc(it.risk)}" data-group="${esc(k.group)}" ${live ? '' : 'disabled'}>
         <span class="mbc-kind g-${esc(k.group)}"><span class="ic">${k.icon}</span><span class="nm">${esc(k.name)}</span>${luckMark}</span>
-        <span class="mbc-label">${esc(it.label)}${cost ? `<span class="mbc-cost${cost.ok ? '' : ' poor'}">${esc(cost.text)}</span>` : ''}</span>
-        <span class="mbc-tags">${badge(r)}${ch ? `<span class="mbc-odds" title="성공 확률">${ch.pct}%</span>` : ''}${res}</span>
+        ${cls === 'ring' ? `<span class="mbc-ring-txt"><span class="mbc-ring-k">${esc(k.name)}${r ? ` · ${r.icon} ${esc(r.name)}` : ''}${ch ? ` · ${ch.pct}%` : ''}</span>` : ''}<span class="mbc-label">${esc(it.label)}${cost ? `<span class="mbc-cost${cost.ok ? '' : ' poor'}">${esc(cost.text)}</span>` : ''}</span>
+        ${cls === 'ring' ? '</span>' : ''}<span class="mbc-tags">${badge(r)}${ch ? `<span class="mbc-odds" title="성공 확률">${ch.pct}%</span>` : ''}${res}</span>
     </button>`;
 }
 
@@ -177,30 +177,48 @@ export function decorate(mesEl, lastAI, force = false) {
     const set = settings();
     const items = set.enabled ? choicesOf(i) : null;
     let panel = mesEl.querySelector('.mbc-panel');
-    if (!items) { panel?.remove(); return; }
+    if (!items) { panel?.remove(); mesEl.querySelector(':scope > .mbc-dock')?.remove(); return; }
     stripRaw(textEl, items);
     const live = i === lastAI && !ctx().chat?.[i + 1];
     const picked = pickedFor(i);
-    // 오래된 답(마지막에서 메시지 40개 넘게 전)은 한 줄 요약만 — 긴 채팅을 열 때 가볍게
-    if (!live && lastAI - i > 40) {
-        const k = picked ? JSON.stringify([picked.n, picked.check?.roll, items.length]) : `n${items.length}`;
-        if (!panel) { panel = document.createElement('div'); }
+    // 지난 선택지: 고른 것만 칩으로 · 아니면 지우기
+    if (!live) {
+        mesEl.querySelector(':scope > .mbc-dock')?.remove();
+        if (set.past === 'delete' || !picked) { panel?.remove(); return; }
+        const k = JSON.stringify([picked.n, picked.check?.roll, items.length, set._rev]);
+        if (!panel || panel.classList.contains('mbc-pop')) { panel = document.createElement('div'); }
         if (panel.dataset.key !== k) {
-            const it = picked ? items[picked.n] : null, kd = it ? kindOf(it.kind) : null, c = picked?.check;
+            const it = items[picked.n], kd = it ? kindOf(it.kind) : null, c = picked.check;
             panel.className = `mbc-panel mbc-mini th-${set.look.theme}`;
-            panel.innerHTML = it ? `<span class="mbc-mini-k">${kd?.icon ?? '•'} ${esc(kd?.name ?? '')}</span> ${esc(it.label)}${c ? ` <span class="mbc-res ${c.ok ? 'good' : 'bad'}">🎲 ${c.ok ? '성공' : '실패'}</span>` : ''}${it.risk === 'trap' ? ' <span class="mbc-res bad">🪤 함정</span>' : ''}` : `<span class="mbc-mini-k">선택지 ${items.length}개</span>`;
+            panel.innerHTML = it ? `<span class="mbc-mini-k">✔ ${kd?.icon ?? '•'} ${esc(kd?.name ?? '')}</span> ${esc(it.label)}${c ? ` <span class="mbc-res ${c.ok ? 'good' : 'bad'}">🎲 ${c.roll}${c.mod ? `${c.mod > 0 ? '+' : '−'}${Math.abs(c.mod)}` : ''} ${c.crit ? '대성공' : c.fumble ? '대실패' : c.ok ? '성공' : '실패'}</span>` : ''}${it.risk === 'trap' ? ' <span class="mbc-res bad">🪤 함정이었다</span>' : ''}${it.risk === 'cursed' ? ' <span class="mbc-res curse">☠ 금단</span>' : ''}` : '';
             panel.dataset.key = k;
         }
         place(textEl, panel);
         return;
     }
     const width = textEl.clientWidth || 600;
-    const key = JSON.stringify([items.map(x => x.label + x.kind + x.risk), live, picked?.n, picked?.check?.roll, live ? [ui.sel, ui.group, width < 540, set.danger.on && heatAt(i + 1), todayLuck()?.name, urgentNeeds(mbState()).map(g => g.cur)] : 0, set._rev]);
-    if (!panel) { panel = document.createElement('div'); panel.className = 'mbc-panel'; }
-    if (force || panel.dataset.key !== key) { panel.innerHTML = panelHTML(i, items, live, picked, width); panel.dataset.key = key; }
-    panel.className = `mbc-panel th-${set.look.theme} lay-${set.layout}${live ? '' : ' stale'}`;
+    const key = JSON.stringify([items.map(x => x.label + x.kind + x.risk), live, picked?.n, picked?.check?.roll, live ? [ui.sel, ui.group, ui.reroll, ui.rerolling, set.click, width < 540, set.danger.on && heatAt(i + 1), todayLuck()?.name, urgentNeeds(mbState()).map(g => g.cur)] : 0, set._rev]);
+    // 고리 메뉴(넓은 화면): 답 오른쪽 아래 동그란 단추 → 올리거나 누르면 펼쳐짐 (자리를 안 차지)
+    const floating = set.layout === 'ring' && width >= 540;
+    let dock = mesEl.querySelector(':scope > .mbc-dock');
+    if (floating) {
+        if (panel && !panel.classList.contains('mbc-pop')) panel.remove();
+        if (!dock) {
+            dock = document.createElement('div'); dock.className = 'mbc-dock';
+            dock.innerHTML = '<button class="mbc-hubbtn" data-mbc-act="dock" aria-label="선택지 펼치기"></button><div class="mbc-panel mbc-pop"></div>';
+            if (getComputedStyle(mesEl).position === 'static') mesEl.style.position = 'relative';
+            mesEl.append(dock);
+        }
+        panel = dock.querySelector('.mbc-pop');
+        const sel = ui.sel?.i === i ? items[ui.sel.n] : null;
+        dock.querySelector('.mbc-hubbtn').innerHTML = `<span class="ic">${sel ? kindOf(sel.kind)?.icon ?? '✦' : '✦'}</span><span class="tx">선택지 <b>${items.length}</b></span>`;
+        dock.classList.toggle('open', ui.open || !!ui.sel || ui.reroll);
+    } else { dock?.remove(); if (panel?.classList.contains('mbc-pop')) panel = null; }
+    if (!panel) { panel = document.createElement('div'); }
+    if (force || panel.dataset.key !== key) { panel.innerHTML = panelHTML(i, items, live, picked, floating ? 600 : width); panel.dataset.key = key; }
+    panel.className = `mbc-panel th-${set.look.theme} lay-${set.layout}${floating ? ' mbc-pop' : ''}`;
     lookVars(panel);
-    place(textEl, panel);
+    if (!floating) place(textEl, panel);
     panelFx(panel, live, mesEl);
     timerFx(panel, live, () => autoPick(i, items));
 }
@@ -235,12 +253,12 @@ export async function choose(i, n, forced = false) {
         check = rollCheck(ch, `${seedOf(i, n)}:${userCount()}`);
         if (panel) await rollAnim(panel, check);
     }
-    const p = { i, n, kind: it.kind, risk: it.risk, label: it.label, check, forced };
+    const p = { i, n, kind: it.kind, risk: it.risk, label: set.input === 'shown' ? it.label : (it.orig ?? it.label), shown: it.label, check, forced };
     meta().pending = p;
     saveMeta();
-    ui.sel = null; ui.group = null;
+    ui.sel = null; ui.group = null; ui.open = false; ui.reroll = false;
     if (panel && check) stamp(panel, check.crit ? '대성공' : check.fumble ? '대실패' : check.ok ? '성공' : '실패', check.ok ? 'good' : 'bad');
-    insertInput(it.label, set.click === 'send');
+    insertInput(set.input === 'shown' ? it.label : (it.orig ?? it.label), set.click === 'send');
     setInject(buildPrompt(userCount() + 1, p));
 }
 function rollAnim(panel, c) {
@@ -300,4 +318,36 @@ export async function sheet(title, html, wide = false) {
     el.innerHTML = `<h3 class="mbc-sheet-title">${esc(title)}</h3>${html}`;
     if (c.Popup && c.POPUP_TYPE) { const p = new c.Popup(el, c.POPUP_TYPE.TEXT, '', { wide, large: wide, allowVerticalScrolling: true, okButton: '닫기' }); await p.show(); return el; }
     alert(el.textContent); return el;
+}
+
+// ───── 🔄 선택지만 다시 받기 ─────
+async function quietGen(prompt) {
+    const c = ctx(), g = c.generateQuietPrompt;
+    if (typeof g !== 'function') throw new Error('이 실리태번은 조용한 생성을 못 해요');
+    return g.length >= 2 ? await g(prompt, false, true) : await g({ quietPrompt: prompt, skipWIAN: true });
+}
+const swapBlock = (text, block) => /<choices>/i.test(text) ? text.replace(/<choices>[\s\S]*?(?:<\/choices>|$)/i, block) : `${text}\n\n${block}`;
+export async function reroll(i, extra) {
+    const c = ctx(), m = c.chat?.[i];
+    if (!m || ui.rerolling) return;
+    const items = choicesOf(i) ?? [];
+    const gloss = !!m.extra?.display_text;
+    ui.rerolling = true;
+    try {
+        const out = String(await quietGen(rerollPrompt(i, items.map(x => x.orig ?? x.label), extra, gloss)) ?? '');
+        const body = out.match(/<choices>([\s\S]*?)(?:<\/choices>|$)/i)?.[1] ?? out;
+        const lines = body.split('\n').map(x => x.trim()).filter(x => /^\s*(?:\d+[.)]\s*)?[\[【〔]/.test(x));
+        if (!lines.length) throw new Error('선택지를 못 받았어요');
+        const orig = `<choices>\n${lines.map(x => x.split('||')[0].trim()).join('\n')}\n</choices>`;
+        const shown = `<choices>\n${lines.map(x => { const [a, b] = x.split('||'); const tag = a.match(/^\s*(?:\d+[.)]\s*)?[\[【〔][^\]】〕]*[\]】〕]/)?.[0] ?? ''; return b ? `${tag} ${b.trim()}` : a.trim(); }).join('\n')}\n</choices>`;
+        m.mes = swapBlock(m.mes, orig);
+        if (Array.isArray(m.swipes) && Number.isInteger(m.swipe_id)) m.swipes[m.swipe_id] = m.mes;
+        m.extra = { ...(m.extra ?? {}), mbcRe: (m.extra?.mbcRe ?? 0) + 1 };
+        if (gloss) m.extra.display_text = swapBlock(m.extra.display_text, shown);
+        await c.saveChat?.();
+        if (typeof c.updateMessageBlock === 'function') c.updateMessageBlock(i, m);
+        else { const t = document.querySelector(`#chat .mes[mesid="${i}"] .mes_text`); if (t && c.messageFormatting) t.innerHTML = c.messageFormatting(m.extra?.display_text ?? m.mes, m.name, m.is_system, m.is_user, i); }
+        ui.sel = null; ui.group = null; ui.reroll = false; ui.rerollText = '';
+    } catch (e) { toastr.error(String(e?.message ?? e), '미트볼 선택지'); }
+    finally { ui.rerolling = false; }
 }

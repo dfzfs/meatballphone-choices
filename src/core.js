@@ -15,6 +15,9 @@ export const DEFAULTS = {
     layout: 'ring',      // ring(고리 메뉴) · list · cards
     confirm: true,       // 한 번 눌러 자세히 보고 「이걸로」로 고르기
     click: 'fill',       // fill · send
+    input: 'raw',        // raw = 원문(번역 전) · shown = 화면에 보이는 글
+    past: 'chip',        // chip = 고른 것만 칩으로 · delete = 지우기
+    hideOld: true,       // 지난 <choices>는 AI에게 안 보냄
     depth: 1,
     kinds: clone(KINDS).map(k => ({ on: true, heat: 0, fx: [], res: '', check: false, ...k })),
     risks: clone(RISKS).map(r => ({ on: true, show: 'show', fx: [], check: false, ...r })),
