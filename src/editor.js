@@ -23,7 +23,10 @@ function base(s) {
         ${row('개수', '6개가 넘으면 고리 메뉴가 성향 묶음으로 나뉨', `<select data-set="count">${[[0, 'AI가 3~5개'], ...[2, 3, 4, 5, 6, 7, 8, 9, 10, 12].map(n => [n, `${n}개`])].map(([v, l]) => `<option value="${v}" ${s.count === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}
         ${row('성향 정하기', 'AI = 장면에 맞는 성향을 AI가 고름 · 확장 = 켠 성향에서 골고루', seg('kindMode', s.kindMode, [['ai', 'AI'], ['plan', '확장']]))}
         ${row('고르는 법', '두 번 = 눌러서 설명 · 확률을 보고 「이걸로」', seg('confirm', s.confirm, [[true, '두 번'], [false, '한 번']]))}
-        ${row('고르면', '', seg('click', s.click, [['fill', '입력창에 넣기'], ['send', '바로 보내기']]))}
+        ${row('고르면', '선택지 창의 ↵ · ➤ 칩으로도 바꿔요', seg('click', s.click, [['fill', '입력창에 넣기'], ['send', '바로 보내기']]))}
+        ${row('넣을 글', '원문 = 번역 전 글 (영어로 쓰는 AI면 영어)', seg('input', s.input, [['raw', '원문'], ['shown', '화면 글']]))}
+        ${row('지난 선택지', '다음 답이 오면', seg('past', s.past, [['chip', '고른 것만 칩으로'], ['delete', '지우기']]))}
+        ${row('지난 선택지 AI에게 안 보내기', '본편에 쌓이는 <choices> 줄을 빼서 토큰을 아낌', sw('hideOld', s.hideOld))}
     </div>
     <div class="mbc-sec">주사위 · 운세</div><div class="mbc-card">
         ${row('주사위', '모험 · 운에 맡기기는 d20을 굴림. 미트볼 능력치가 보정으로 들어감', sw('dice.on', s.dice.on))}
@@ -97,7 +100,7 @@ function fx(s) {
 function look(s) {
     const L = s.look;
     return `<div class="mbc-sec">모양</div><div class="mbc-card">
-        ${row('배치', '고리 = 생활 시뮬풍 원형 메뉴 (좁은 화면에선 목록)', seg('layout', s.layout, [['ring', '고리'], ['list', '목록'], ['cards', '카드']]))}
+        ${row('배치', '고리 = 답 옆 동그란 단추 → 올리면 펼쳐짐 (좁은 화면에선 목록)', seg('layout', s.layout, [['ring', '고리'], ['list', '목록'], ['cards', '카드']]))}
     </div>
     <div class="mbc-sec">테마</div><div class="mbc-card pad"><div class="mbc-chipset">${Object.entries(THEMES).map(([id, t]) => `<button type="button" class="mbc-chip ${L.theme === id ? 'on' : ''}" data-set="look.theme" data-val="${id}">${esc(t.name)}</button>`).join('')}</div></div>
     <div class="mbc-sec">직접 고르기</div><div class="mbc-card">

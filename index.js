@@ -1,8 +1,8 @@
 // 미트볼 선택지 — 답 끝의 선택지를 게임 선택지 창으로. 미트볼 상태창 칩 위에 뜬다.
 // 성향(18종 · 직접 만들기) × 위험(6종) · 미트볼 능력치 · 수치 · 오늘의 운세로 굴리는 d20 · 위험 모드 · 효과
 import { settings, ctx, meta, saveMeta, userCount, LOG, mbClear } from './src/core.js';
-import { onBeforeGen, setInject, buildPrompt } from './src/prompt.js';
-import { decorate, lastAIIndex, ui, choose, helpSheet } from './src/panel.js';
+import { onBeforeGen, setInject, buildPrompt, stripOld } from './src/prompt.js';
+import { decorate, lastAIIndex, ui, choose, helpSheet, reroll } from './src/panel.js';
 import { screenFx, wireHover } from './src/fx.js';
 import { openEditor, setOnChange } from './src/editor.js';
 
@@ -32,12 +32,16 @@ function onSent(idx) {
 
 // 누르기
 document.addEventListener('click', (e) => {
-    const t = e.target.closest?.('.mbc-panel [data-mbc-act], .mbc-panel .mbc-opt[data-mbc-i]');
-    if (!t) return;
+    const t = e.target.closest?.('.mbc-panel [data-mbc-act], .mbc-dock [data-mbc-act], .mbc-panel .mbc-opt[data-mbc-i]');
+    if (!t) { if (ui.open && !e.target.closest?.('.mbc-dock')) { ui.open = false; decorateAll(true); } return; }
     e.preventDefault(); e.stopPropagation();
-    const panel = t.closest('.mbc-panel');
+    const panel = t.closest('.mbc-panel') ?? t.closest('.mbc-dock');
     const i = Number(panel.closest('.mes')?.getAttribute('mesid'));
     const act = t.dataset.mbcAct;
+    if (act === 'dock') { const chatR = document.getElementById('chat')?.getBoundingClientRect(), r = panel.getBoundingClientRect(); if (chatR) panel.classList.toggle('down', (r.top - chatR.top) < 340 && (chatR.bottom - r.bottom) > (r.top - chatR.top)); ui.open = !ui.open; if (!ui.open) { ui.sel = null; ui.reroll = false; } decorateAll(true); return; }
+    if (act === 'click') { const s = settings(); s.click = s.click === 'send' ? 'fill' : 'send'; ctx().saveSettingsDebounced(); decorateAll(true); return; }
+    if (act === 'reroll') { ui.reroll = !ui.reroll; ui.open = true; decorateAll(true); if (ui.reroll) setTimeout(() => document.querySelector('.mbc-rr-in')?.focus(), 30); return; }
+    if (act === 'rerollGo') { ui.rerollText = panel.querySelector('.mbc-rr-in')?.value ?? ui.rerollText; const p = reroll(i, ui.rerollText.trim()); decorateAll(true); p.then(() => decorateAll(true)); return; }
     if (act === 'help' || act === 'luck' || act === 'heat') { helpSheet(act); return; }
     if (act === 'edit') { openEditor(); return; }
     if (act === 'group') { ui.group = t.dataset.g; ui.sel = null; decorateAll(true); return; }
@@ -50,6 +54,17 @@ document.addEventListener('click', (e) => {
     decorateAll(true);
     panel.querySelector('.mbc-detail')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }, true);
+
+// 떠 있는 고리: 위 · 아래 중 넓은 쪽으로 펼치기
+document.addEventListener('mouseover', (e) => {
+    const d = e.target.closest?.('.mbc-dock'); if (!d || d._dirT === e.timeStamp) return;
+    const chat = document.getElementById('chat')?.getBoundingClientRect(), r = d.getBoundingClientRect();
+    if (chat) d.classList.toggle('down', (r.top - chat.top) < 340 && (chat.bottom - r.bottom) > (r.top - chat.top));
+}, true);
+
+// 다시 받기 입력: 적은 글 기억 · Enter로 받기
+document.addEventListener('input', (e) => { if (e.target.classList?.contains('mbc-rr-in')) ui.rerollText = e.target.value; }, true);
+document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.classList?.contains('mbc-rr-in')) { e.preventDefault(); e.target.closest('.mbc-panel')?.querySelector('[data-mbc-act="rerollGo"]')?.click(); } }, true);
 
 // 확장 설정 칸: 한 줄 + 편집기 열기
 function renderSettings() {
@@ -107,7 +122,14 @@ function init() {
     const on = (name, fn) => { if (E[name]) eventSource.on(E[name], fn); };
     on('GENERATION_AFTER_COMMANDS', onBeforeGen);
     on('MESSAGE_SENT', onSent);
-    on('CHAT_CHANGED', () => { setInject(''); ui.sel = null; ui.group = null; setTimeout(() => { watch(); decorateAll(); }, 50); });
+    // 지난 선택지는 AI에게 안 보냄 (채팅 완성 · 글 완성 둘 다)
+    const strip = (x) => (typeof x === 'string' ? stripOld(x) : x);
+    on('CHAT_COMPLETION_PROMPT_READY', (d) => {
+        if (!settings().enabled || !settings().hideOld || !Array.isArray(d?.chat)) return;
+        for (const m of d.chat) { if (typeof m.content === 'string') m.content = strip(m.content); else if (Array.isArray(m.content)) for (const p of m.content) if (p?.type === 'text') p.text = strip(p.text); }
+    });
+    on('GENERATE_AFTER_COMBINE_PROMPTS', (d) => { if (settings().enabled && settings().hideOld && typeof d?.prompt === 'string') d.prompt = strip(d.prompt); });
+    on('CHAT_CHANGED', () => { setInject(''); ui.sel = null; ui.group = null; ui.open = false; ui.reroll = false; setTimeout(() => { watch(); decorateAll(); }, 50); });
     for (const ev of ['CHARACTER_MESSAGE_RENDERED', 'USER_MESSAGE_RENDERED', 'MESSAGE_UPDATED', 'MESSAGE_SWIPED', 'MESSAGE_EDITED', 'GENERATION_ENDED', 'GENERATION_STOPPED']) on(ev, () => setTimeout(() => decorateAll(true), 30));
     for (const ev of ['MESSAGE_DELETED', 'MORE_MESSAGES_LOADED']) on(ev, () => setTimeout(() => decorateAll(false), 30));
     // 미트볼 라이트 상태가 바뀌면 (대가 미리 보기 · 확률 · 운세) 최근 선택지만 다시
