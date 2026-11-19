@@ -6,7 +6,7 @@ import { panelFx, stamp, timerFx } from './fx.js';
 
 const SLOT_SEL = '.ss-slot, .custom-ss-slot, .ml-msg';
 const STAGE_KO = ['평온', '불안', '위험', '파국'];
-export const ui = { sel: null, group: null, rolling: false, open: false, reroll: false, rerollText: '', rerolling: false }; // 지금 고른 칸 · 열어 둔 묶음
+export const ui = { sel: null, group: null, rolling: false, open: false, reroll: false, rerollText: '', rerolling: false, hover: false }; // 지금 고른 칸 · 열어 둔 묶음
 
 // 위험 딱지 (보이는 모양: 그대로 · 숨김 · 안전으로 위장). 지난 선택지는 진짜를 보여 준다
 function riskView(id, reveal) {
@@ -198,27 +198,26 @@ export function decorate(mesEl, lastAI, force = false) {
     }
     const width = textEl.clientWidth || 600;
     const key = JSON.stringify([items.map(x => x.label + x.kind + x.risk), live, picked?.n, picked?.check?.roll, live ? [ui.sel, ui.group, ui.reroll, ui.rerolling, set.click, width < 540, set.danger.on && heatAt(i + 1), todayLuck()?.name, urgentNeeds(mbState()).map(g => g.cur)] : 0, set._rev]);
-    // 고리 메뉴(넓은 화면): 답 오른쪽 아래 동그란 단추 → 올리거나 누르면 펼쳐짐 (자리를 안 차지)
-    const floating = set.layout === 'ring' && width >= 540;
-    let dock = mesEl.querySelector(':scope > .mbc-dock');
+    // 고리 메뉴(넓은 화면): 채팅 옆 빈자리에 「?」 동그라미 하나 → 올리면 선택지가 부채꼴로 촤락
+    const floating = set.layout === 'ring' && window.innerWidth >= 700;
+    mesEl.querySelector(':scope > .mbc-dock')?.remove();
     if (floating) {
-        if (panel && !panel.classList.contains('mbc-pop')) panel.remove();
-        if (!dock) {
-            dock = document.createElement('div'); dock.className = 'mbc-dock';
-            dock.innerHTML = '<button class="mbc-hubbtn" data-mbc-act="dock" aria-label="선택지 펼치기"></button><div class="mbc-panel mbc-pop"></div>';
-            if (getComputedStyle(mesEl).position === 'static') mesEl.style.position = 'relative';
-            mesEl.append(dock);
-        }
-        panel = dock.querySelector('.mbc-pop');
-        const sel = ui.sel?.i === i ? items[ui.sel.n] : null;
-        dock.querySelector('.mbc-hubbtn').innerHTML = `<span class="ic">${sel ? kindOf(sel.kind)?.icon ?? '✦' : '✦'}</span><span class="tx">선택지 <b>${items.length}</b></span>`;
-        dock.classList.toggle('open', ui.open || !!ui.sel || ui.reroll);
-    } else { dock?.remove(); if (panel?.classList.contains('mbc-pop')) panel = null; }
-    if (!panel) { panel = document.createElement('div'); }
-    if (force || panel.dataset.key !== key) { panel.innerHTML = panelHTML(i, items, live, picked, floating ? 600 : width); panel.dataset.key = key; }
-    panel.className = `mbc-panel th-${set.look.theme} lay-${set.layout}${floating ? ' mbc-pop' : ''}`;
-    lookVars(panel);
-    if (!floating) place(textEl, panel);
+        if (panel && !panel.classList.contains('mbc-side')) panel.remove();
+        panel = document.getElementById('mbc-side');
+        if (!panel) { panel = document.createElement('div'); panel.id = 'mbc-side'; document.body.append(panel); wireSide(panel); }
+        sideLive.on = true;
+        if (force || panel.dataset.key !== key || panel.dataset.i !== String(i)) { panel.innerHTML = sideHTML(i, items, picked); panel.dataset.key = key; panel.dataset.i = String(i); }
+        panel.className = `mbc-panel mbc-side th-${set.look.theme}${sideOpen() ? ' open' : ''}${ui.sel?.i === i ? ' has-sel' : ''}`;
+        lookVars(panel);
+        placeSide();
+    } else {
+        if (panel?.classList.contains('mbc-side')) panel = null;
+        if (!panel) { panel = document.createElement('div'); }
+        if (force || panel.dataset.key !== key) { panel.innerHTML = panelHTML(i, items, live, picked, width); panel.dataset.key = key; }
+        panel.className = `mbc-panel th-${set.look.theme} lay-${set.layout}`;
+        lookVars(panel);
+        place(textEl, panel);
+    }
     panelFx(panel, live, mesEl);
     timerFx(panel, live, () => autoPick(i, items));
 }
@@ -246,7 +245,7 @@ export async function choose(i, n, forced = false) {
     const it = items?.[n];
     if (!it || ui.rolling) return;
     const set = settings();
-    const panel = document.querySelector(`#chat .mes[mesid="${i}"] .mbc-panel`);
+    const panel = document.querySelector(`#chat .mes[mesid="${i}"] .mbc-panel`) ?? document.getElementById('mbc-side');
     const ch = checkOf(i, it, n);
     let check = null;
     if (ch) {
@@ -350,4 +349,68 @@ export async function reroll(i, extra) {
         ui.sel = null; ui.group = null; ui.reroll = false; ui.rerollText = '';
     } catch (e) { toastr.error(String(e?.message ?? e), '미트볼 선택지'); }
     finally { ui.rerolling = false; }
+}
+
+// ───── 옆 동그라미 + 부채꼴 ─────
+export const sideLive = { on: false };
+export function dropSide() { document.getElementById('mbc-side')?.remove(); }
+const sideOpen = () => ui.open || !!ui.sel || ui.reroll || ui.hover;
+function sideHTML(i, items, picked) {
+    const set = settings();
+    const groups = [...new Set(items.map(it => kindOf(it.kind)?.group ?? 'act'))];
+    const useGroups = items.length > 8 && groups.length > 1;
+    const inGroup = useGroups && groups.includes(ui.group) ? ui.group : null;
+    let nodes;
+    if (useGroups && !inGroup) nodes = groups.map(g => { const G = GROUPS[g] ?? { name: g, icon: '•' }; const c = items.filter(it => (kindOf(it.kind)?.group ?? 'act') === g).length; return `<button class="mbc-opt ring mbc-group g-${g}" data-mbc-act="group" data-g="${g}"><span class="mbc-kind"><span class="ic">${G.icon}</span></span><span class="mbc-label">${esc(G.name)} <small>${c}</small> ›</span></button>`; });
+    else nodes = items.map((it, n) => [it, n]).filter(([it]) => !inGroup || (kindOf(it.kind)?.group ?? 'act') === inGroup).map(([it, n]) => optHTML(i, it, n, true, picked, 'ring'));
+    const sel = ui.sel?.i === i ? items[ui.sel.n] : null;
+    const hub = inGroup
+        ? `<button class="mbc-sidehub" data-mbc-act="back" title="묶음으로"><b>‹</b><small>${esc(GROUPS[inGroup]?.name ?? '')}</small></button>`
+        : `<button class="mbc-sidehub" data-mbc-act="dock" title="선택지 ${items.length}개"><b>${sel ? kindOf(sel.kind)?.icon ?? '?' : '?'}</b><small>${items.length}</small></button>`;
+    const lk = todayLuck(), ll = lk ? null : liteLuck();
+    const luckBtn = lk ? `<button class="mbc-tool" data-mbc-act="luck" title="오늘 ${lk.name}">🍀</button>` : ll?.rolled ? `<button class="mbc-tool" data-mbc-act="luck" title="${esc(ll.text)}">🍀</button>` : '';
+    const heat = set.danger.on ? (() => { const h = heatAt(i + 1), st = stageOf(h); return `<button class="mbc-tool heat s${st}" data-mbc-act="heat" title="긴장도 ${h}/100 · ${STAGE_KO[st]}">${['😌', '😰', '😱', '💀'][st]}</button>`; })() : '';
+    const tools = `<div class="mbc-tools">${heat}${luckBtn}<button class="mbc-tool" data-mbc-act="click" title="${set.click === 'send' ? '고르면 바로 보내기' : '고르면 입력창에 넣기'} (눌러서 바꾸기)">${set.click === 'send' ? '➤' : '↵'}</button><button class="mbc-tool${ui.reroll ? ' on' : ''}" data-mbc-act="reroll" title="선택지 다시 받기">🔄</button><button class="mbc-tool" data-mbc-act="help" title="읽는 법">ⓘ</button><button class="mbc-tool" data-mbc-act="edit" title="설정">⚙</button></div>`;
+    const card = ui.reroll
+        ? `<div class="mbc-sidecard"><div class="mbc-reroll"><input type="text" class="mbc-rr-in" placeholder="추가 지시 (비워도 돼요)" value="${esc(ui.rerollText)}"><button class="mbc-go sm" data-mbc-act="rerollGo" ${ui.rerolling ? 'disabled' : ''}>${ui.rerolling ? '받는 중…' : '다시 받기'}</button></div></div>`
+        : sel && set.confirm ? `<div class="mbc-sidecard">${detailHTML(i, sel, ui.sel.n)}</div>` : '';
+    return `<div class="mbc-scrim"></div>${tools}<div class="mbc-fan">${nodes.map((h, k) => h.replace('class="mbc-opt', `style="--k:${k}" class="mbc-opt`)).join('')}</div>${hub}${card}`;
+}
+// 채팅 옆 빈자리 찾기 · 부채꼴 각도 (스크롤 · 창 크기 바뀔 때마다)
+export function placeSide() {
+    const el = document.getElementById('mbc-side'); if (!el) return;
+    const chatEl = document.getElementById('chat'); if (!chatEl) return;
+    const c = chatEl.getBoundingClientRect();
+    const mes = document.querySelector(`#chat .mes[mesid="${el.dataset.i}"]`)?.getBoundingClientRect();
+    const roomR = window.innerWidth - c.right, roomL = c.left;
+    let x, dir = 'left';
+    if (roomR >= 64) x = c.right + Math.min(roomR / 2, 48);
+    else if (roomL >= 64) { x = c.left - Math.min(roomL / 2, 48); dir = 'right'; }
+    else x = c.right - 40;
+    const y = Math.max(c.top + 48, Math.min((mes ? mes.bottom : c.bottom) - 48, c.bottom - 48));
+    el.style.left = `${Math.round(x)}px`; el.style.top = `${Math.round(y)}px`; el.dataset.dir = dir; el.dataset.cardUp = window.innerHeight - y < 330 ? '1' : '';
+    const opts = [...el.querySelectorAll('.mbc-fan > .mbc-opt')];
+    const n = opts.length; if (!n) return;
+    const R = 150 + Math.max(0, n - 4) * 16;
+    const spread = Math.min(160, 40 + n * 22) * Math.PI / 180; // 부채꼴 폭
+    let center = Math.PI; // 왼쪽으로 펼침
+    const below = c.bottom - y, above = y - c.top;
+    if (below < R * 0.9) center += Math.min(0.75, (R * 0.9 - below) / R);
+    if (above < R * 0.9) center -= Math.min(0.75, (R * 0.9 - above) / R);
+    if (dir === 'right') center = Math.PI - center + Math.PI; // 거울
+    opts.forEach((o, k) => {
+        const a = n === 1 ? center : center + spread / 2 - spread * k / (n - 1); // 첫 선택지가 위
+        o.style.setProperty('--tx', `${(Math.cos(a) * R).toFixed(1)}px`);
+        o.style.setProperty('--ty', `${(Math.sin(a) * R * 0.92).toFixed(1)}px`);
+    });
+    el.style.setProperty('--R', `${R}px`);
+}
+let sideT = 0;
+function wireSide(el) {
+    el.addEventListener('mouseenter', () => { clearTimeout(sideT); if (!ui.hover) { ui.hover = true; el.classList.add('open'); } });
+    el.addEventListener('mouseleave', () => { clearTimeout(sideT); sideT = setTimeout(() => { ui.hover = false; if (!sideOpen()) el.classList.remove('open'); }, 350); });
+    let raf = 0;
+    const re = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(placeSide); };
+    document.getElementById('chat')?.addEventListener('scroll', re, { passive: true });
+    window.addEventListener('resize', re, { passive: true });
 }
