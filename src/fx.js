@@ -196,7 +196,7 @@ export function timerFx(panel, live, onExpire) {
     bar.innerHTML = '<i></i>';
     const sec = Math.max(5, Number(set.timer.sec) || 25);
     bar.firstChild.style.animationDuration = `${sec}s`;
-    panel.querySelector('.mbc-head')?.after(bar);
+    const head = panel.querySelector('.mbc-head'); if (head) head.after(bar); else panel.append(bar);
     clearTimeout(timerT);
     timerT = setTimeout(() => { if (bar.isConnected) { panel.dataset.timerDone = '1'; bar.remove(); onExpire?.(); } }, sec * 1000);
 }

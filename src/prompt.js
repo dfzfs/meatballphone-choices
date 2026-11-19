@@ -125,6 +125,7 @@ export function choicesOf(i) {
         ...it,
         label: it.gloss ?? it.label,
         orig: raw?.[k]?.label ?? it.label, // 입력창에 넣을 원문 (번역 전)
+        origRaw: raw?.[k]?.raw ?? null,
         kind: it.kind ?? raw?.[k]?.kind ?? plan.kinds[k] ?? 'rational',
         risk: it.risk ?? raw?.[k]?.risk ?? plan.risks[k] ?? 'none',
     }));

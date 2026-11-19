@@ -26,7 +26,9 @@ function onSent(idx) {
     const i = Number.isFinite(Number(idx)) ? Number(idx) : chat.length - 1;
     const m = chat[i], md = meta();
     if (!m?.is_user) return;
-    if (md.pending && m.mes.includes(md.pending.label.slice(0, 8))) m.extra = { ...(m.extra ?? {}), mbc: md.pending };
+    const key = md.pending?.label.slice(0, 8), key2 = md.pending?.shown?.slice(0, 8);
+    const txt = `${m.mes}\n${m.extra?.display_text ?? ''}`;
+    if (md.pending && (txt.includes(key) || (key2 && txt.includes(key2)))) m.extra = { ...(m.extra ?? {}), mbc: md.pending };
     md.pending = null;
     saveMeta();
     if (settings().enabled) setInject(buildPrompt(userCount(), m.extra?.mbc ?? null));
@@ -127,6 +129,9 @@ function init() {
     const on = (name, fn) => { if (E[name]) eventSource.on(E[name], fn); };
     on('GENERATION_AFTER_COMMANDS', onBeforeGen);
     on('MESSAGE_SENT', onSent);
+    on('GENERATION_STARTED', (type, _o, dry) => { if (!dry && type !== 'quiet') { ui.gen = true; ui.sel = null; ui.open = false; ui.reroll = false; } });
+    for (const ev of ['GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_RECEIVED', 'CHARACTER_MESSAGE_RENDERED', 'CHAT_CHANGED']) on(ev, () => { ui.gen = false; });
+    for (const ev of ['MESSAGE_SWIPED', 'MESSAGE_RECEIVED', 'MESSAGE_DELETED']) on(ev, () => { ui.sel = null; ui.group = null; });
     // 지난 선택지는 AI에게 안 보냄 (채팅 완성 · 글 완성 둘 다)
     const strip = (x) => (typeof x === 'string' ? stripOld(x) : x);
     on('CHAT_COMPLETION_PROMPT_READY', (d) => {
