@@ -8,6 +8,7 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 const ST = {
     chat: [], chatId: 'c1', chatMetadata: {}, extensionSettings: {}, extensionPrompts: {},
     sent: [], // 실제로 보낸 프롬프트 기록 { type, text }
+    saves: [], streaming: false, marks: [], dirty: new Set(), // 저장 시험용 · 다시 그릴 메시지
     mode: Q.get('mode') === 'text' ? 'text' : 'chat',
     reply: null, // (turn, type) => 답 글
 };
@@ -15,12 +16,16 @@ const ctxObj = {
     get chat() { return ST.chat; }, get chatId() { return ST.chatId; }, get chatMetadata() { return ST.chatMetadata; },
     extensionSettings: ST.extensionSettings, extensionPrompts: ST.extensionPrompts,
     eventSource: es, event_types: ET,
-    saveSettingsDebounced() {}, saveMetadata() {}, saveChat: async () => {}, saveChatDebounced() {},
+    saveSettingsDebounced() {},
+    // 저장 기록: 어떤 저장을 언제(받는 중인지) 불렀나
+    saveMetadata() { ST.saves.push({ kind: 'meta', t: performance.now(), streaming: ST.streaming }); },
+    saveChat: async () => { ST.saves.push({ kind: 'direct', t: performance.now(), streaming: ST.streaming }); },
+    saveChatDebounced() { ST.saves.push({ kind: 'deb', t: performance.now(), streaming: ST.streaming }); },
     setExtensionPrompt(k, v) { ST.extensionPrompts[k] = { value: v }; },
     POPUP_TYPE: { TEXT: 1 },
     Popup: class { constructor(el) { this.el = el; } show() { const p = document.getElementById('pop'); p.firstElementChild.replaceChildren(this.el); p.style.display = 'flex'; return new Promise(() => {}); } },
     messageFormatting: (t) => fmt(t),
-    updateMessageBlock: (i) => render(),
+    updateMessageBlock: (i) => { ST.dirty.add(Number(i)); render(); },
     executeSlashCommandsWithOptions: async (cmd) => { const m = cmd.match(/branch-create (\d+)/); if (m) await T.branch(Number(m[1])); },
     generateQuietPrompt: async ({ quietPrompt }) => { ST.quiet = quietPrompt; ST.quietN = (ST.quietN ?? 0) + 1;
         if (/<route>|<facts>|<spoil>/.test(quietPrompt)) return '<route>\n- 서하와 비밀을 나눈다 | 둘 사이가 가까워짐\n- 경비원에게 들킨다 | 긴장감\n</route>\n<facts>\n- 연구실 문은 오른쪽에 있다\n- 서하는 우산을 두고 왔다\n</facts>\n<spoil>\n- 문을 연다 => 푸른 빛의 정체를 본다 || Open the door\n- 돌아간다 => 서하가 실망한다 || Turn back\n</spoil>';
@@ -49,6 +54,7 @@ function render(full = false) {
     ST.chat.forEach((m, i) => {
         const txt = m.extra?.display_text ?? m.mes, sig = `${m.name}|${txt}`;
         let el = c.querySelector(`:scope > .mes[mesid="${i}"]`);
+        if (el && !full && !ST.dirty.has(i)) { el.classList.toggle('last_mes', i === ST.chat.length - 1); return; } // 데이터만 바뀌면 다시 안 그림 (실리태번처럼)
         if (el && el.dataset.sig === sig) { el.classList.toggle('last_mes', i === ST.chat.length - 1); return; }
         const chip = !m.is_user ? `<div class="ml-msg"><span class="ml-chip">⚡ 에너지 −10</span><span class="ml-chip">📍 연구동</span></div>` : '';
         const n = document.createElement('div'); n.className = `mes${i === ST.chat.length - 1 ? ' last_mes' : ''}`; n.setAttribute('mesid', i); n.dataset.sig = sig;
@@ -56,6 +62,7 @@ function render(full = false) {
         if (el) el.replaceWith(n); else c.append(n);
     });
     c.querySelectorAll(':scope > .mes').forEach(el => { if (Number(el.getAttribute('mesid')) >= ST.chat.length) el.remove(); });
+    ST.dirty.clear();
 }
 const aiMsg = (mes) => ({ is_user: false, name: '서하', mes, swipes: [mes], swipe_id: 0, swipe_info: [{ extra: {} }], extra: {} });
 
@@ -80,24 +87,28 @@ const T = {
     // 내가 보내기 (text 없으면 입력창 글)
     async send(text, turn) {
         const ta = document.getElementById('send_textarea'); if (text != null) ta.value = text;
+        ST.streaming = true; ST.marks.push({ ev: 'start', t: performance.now() });
         await es.emit('GENERATION_STARTED', 'normal', {}, false);
         await es.emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
         if (ta.value.trim()) { ST.chat.push({ is_user: true, name: '나', mes: ta.value, extra: {} }); ta.value = ''; render(); await es.emit('MESSAGE_SENT', ST.chat.length - 1); await es.emit('USER_MESSAGE_RENDERED', ST.chat.length - 1); }
         await sendPrompt('normal', ST.chat.length);
+        ST.prevDuring = ST.chat.slice(0, -1).map(m => m.mes); // 받는 중 본문 (고쳐지면 안 됨)
+        await T.wait(60); // 받는 중
         ST.chat.push(aiMsg(ST.reply(turn, 'normal'))); render();
+        ST.changedDuring = ST.chat.slice(0, ST.prevDuring.length).some((m, k) => m.mes !== ST.prevDuring[k]);
         await T.after();
     },
-    async after() { const i = ST.chat.length - 1; await es.emit('MESSAGE_RECEIVED', i); await es.emit('CHARACTER_MESSAGE_RENDERED', i); await es.emit('GENERATION_ENDED'); await T.wait(); },
-    async regenerate(turn) { ST.chat.pop(); render(); await es.emit('GENERATION_STARTED', 'regenerate', {}, false); await es.emit('GENERATION_AFTER_COMMANDS', 'regenerate', {}, false); await sendPrompt('regenerate', ST.chat.length); ST.chat.push(aiMsg(ST.reply(turn, 'regenerate'))); render(); await T.after(); },
+    async after() { const i = ST.chat.length - 1; ST.streaming = false; ST.marks.push({ ev: 'recv', t: performance.now() }); await es.emit('MESSAGE_RECEIVED', i); await es.emit('CHARACTER_MESSAGE_RENDERED', i); await es.emit('GENERATION_ENDED'); await T.wait(); },
+    async regenerate(turn) { ST.chat.pop(); render(); ST.streaming = true; ST.marks.push({ ev: 'start', t: performance.now() }); await es.emit('GENERATION_STARTED', 'regenerate', {}, false); await es.emit('GENERATION_AFTER_COMMANDS', 'regenerate', {}, false); await sendPrompt('regenerate', ST.chat.length); ST.chat.push(aiMsg(ST.reply(turn, 'regenerate'))); render(); await T.after(); },
     async swipeNew(turn) {
         const m = ST.chat[ST.chat.length - 1];
-        await es.emit('GENERATION_STARTED', 'swipe', {}, false); await es.emit('GENERATION_AFTER_COMMANDS', 'swipe', {}, false);
+        ST.streaming = true; ST.marks.push({ ev: 'start', t: performance.now() }); await es.emit('GENERATION_STARTED', 'swipe', {}, false); await es.emit('GENERATION_AFTER_COMMANDS', 'swipe', {}, false);
         await sendPrompt('swipe', ST.chat.length - 1);
         const t = ST.reply(turn, 'swipe'); m.swipes.push(t); m.swipe_info.push({ extra: {} }); m.swipe_id = m.swipes.length - 1; m.mes = t; m.extra = {};
-        render(); await es.emit('MESSAGE_SWIPED', ST.chat.length - 1); await T.after();
+        ST.dirty.add(ST.chat.length - 1); render(); await es.emit('MESSAGE_SWIPED', ST.chat.length - 1); await T.after();
     },
-    async swipeTo(k) { const m = ST.chat[ST.chat.length - 1]; m.swipe_id = k; m.mes = m.swipes[k]; m.extra = clone(m.swipe_info[k]?.extra ?? {}); render(); await es.emit('MESSAGE_SWIPED', ST.chat.length - 1); await T.wait(); },
-    async cont() { await es.emit('GENERATION_STARTED', 'continue', {}, false); await es.emit('GENERATION_AFTER_COMMANDS', 'continue', {}, false); await sendPrompt('continue', ST.chat.length); const m = ST.chat[ST.chat.length - 1]; m.mes += ' 그리고 조용해졌다.'; m.swipes[m.swipe_id] = m.mes; render(); await T.after(); },
+    async swipeTo(k) { const m = ST.chat[ST.chat.length - 1]; m.swipe_id = k; m.mes = m.swipes[k]; m.extra = clone(m.swipe_info[k]?.extra ?? {}); ST.dirty.add(ST.chat.length - 1); render(); await es.emit('MESSAGE_SWIPED', ST.chat.length - 1); await T.wait(); },
+    async cont() { ST.streaming = true; ST.marks.push({ ev: 'start', t: performance.now() }); await es.emit('GENERATION_STARTED', 'continue', {}, false); await es.emit('GENERATION_AFTER_COMMANDS', 'continue', {}, false); await sendPrompt('continue', ST.chat.length); const m = ST.chat[ST.chat.length - 1]; m.mes += ' 그리고 조용해졌다.'; m.swipes[m.swipe_id] = m.mes; ST.dirty.add(ST.chat.length - 1); render(); await T.after(); },
     async del(from) { ST.chat.splice(from); render(); await es.emit('MESSAGE_DELETED', from); await T.wait(); },
     async branch(at) { ST.chat = clone(ST.chat.slice(0, at + 1)); ST.chatId = `${ST.chatId}-b${at}`; ST.chatMetadata = {}; render(true); await es.emit('CHAT_CHANGED'); await T.wait(150); },
     async reopen() { ST.chat = clone(ST.chat); render(true); await es.emit('CHAT_CHANGED'); await T.wait(150); },

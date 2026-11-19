@@ -61,7 +61,26 @@ export function meta() {
     if (!md[MODULE] || Object.keys(md[MODULE]).some(k => k !== 'pending')) md[MODULE] = { pending: md[MODULE]?.pending ?? null }; // 옛 키(reset 등) 정리
     return md[MODULE];
 }
-export const saveMeta = () => { const c = ctx(); (c.saveMetadataDebounced ?? c.saveMetadata)?.call(c); };
+// ───── 저장: 한 군데서만 (윈도우에서 실리태번 저장과 겹치면 EPERM rename 실패) ─────
+// 1. 답을 받는 중엔 절대 저장 안 함  2. saveChat() 직접 X → saveChatDebounced()만
+// 3. 답이 끝나면 1초 뒤(실리태번 자체 저장이 끝난 뒤) 한 번만  4. 본문(mes) 고치기도 그때 한 번에
+const SV = { gen: false, want: false, t: 0, jobs: [] };
+const SETTLE_MS = 1000;
+export const isGenerating = () => SV.gen;
+function flush() {
+    if (SV.gen) return;
+    for (const job of SV.jobs.splice(0)) { try { if (job()) SV.want = true; } catch (e) { console.warn(LOG, e); } }
+    if (!SV.want) return;
+    SV.want = false;
+    const c = ctx(); c.saveChatDebounced?.call(c);
+}
+const schedule = () => { clearTimeout(SV.t); SV.t = setTimeout(flush, SETTLE_MS); };
+export function requestSave() { SV.want = true; if (!SV.gen) schedule(); }
+// 본문을 고치는 일: 답이 끝난 뒤 1초에 한 번에 (job이 true를 돌려주면 저장)
+export function afterReply(job) { SV.jobs.push(job); if (!SV.gen) schedule(); }
+export function genStarted() { SV.gen = true; clearTimeout(SV.t); }
+export function genEnded() { if (!SV.gen && !SV.jobs.length && !SV.want) return; SV.gen = false; schedule(); }
+export const saveMeta = requestSave; // chatMetadata는 채팅과 함께 저장됨 (saveMetadata를 따로 부르지 않음)
 
 // 메시지 extra 고치기 — 지금 스와이프의 swipe_info에도 같이 (스와이프를 넘겨도 맞게)
 export function setExtra(m, patch) {

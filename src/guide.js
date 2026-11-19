@@ -1,5 +1,5 @@
 // 🧭 추천: 진행 추천 · 지금 사실 · 미래 스포 — 누를 때만 AI 1회. 결과는 그 답 extra(스와이프마다)에 저장 → AI에게 안 감
-import { settings, ctx, esc, setExtra } from './core.js'; // eslint-disable-line no-unused-vars
+import { settings, ctx, esc, setExtra, requestSave, isGenerating } from './core.js';
 import { sceneLine } from './prompt.js';
 
 export const SECTIONS = {
@@ -41,6 +41,7 @@ async function quietGen(prompt) {
 export const gst = { busy: null, tab: null }; // 받는 중인 칸 · 펼친 칸
 export async function fetchGuide(i, only = null, extra = '') {
     const m = ctx().chat?.[i]; if (!m || gst.busy) return;
+    if (isGenerating()) { toastr.info('답을 받는 중이에요. 끝난 뒤에 받아 주세요.', '미트볼 선택지'); return; }
     const secs = only ? [only] : guideOn();
     if (!secs.length) { toastr.info('설정에서 받을 칸을 하나 이상 켜 주세요.', '미트볼 선택지'); return; }
     gst.busy = only ?? 'all';
@@ -48,7 +49,7 @@ export async function fetchGuide(i, only = null, extra = '') {
         const got = parseGuide(String(await quietGen(guidePrompt(only, extra)) ?? ''), secs);
         if (!Object.values(got).some(a => a?.length)) throw new Error('추천을 못 받았어요');
         setExtra(m, { mbcGuide: { ...(m.extra?.mbcGuide ?? {}), ...got } });
-        await ctx().saveChat?.();
+        requestSave();
     } catch (e) { toastr.error(String(e?.message ?? e), '미트볼 선택지'); }
     finally { gst.busy = null; }
 }
