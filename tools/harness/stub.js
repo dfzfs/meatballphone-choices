@@ -22,7 +22,9 @@ const ctxObj = {
     messageFormatting: (t) => fmt(t),
     updateMessageBlock: (i) => render(),
     executeSlashCommandsWithOptions: async (cmd) => { const m = cmd.match(/branch-create (\d+)/); if (m) await T.branch(Number(m[1])); },
-    generateQuietPrompt: async ({ quietPrompt }) => { ST.quiet = quietPrompt; return '<choices>\n[brave|gamble] Kick the door open || 문을 걷어찬다\n[rational|safe] Knock first || 먼저 노크한다\n[tease|none] Whistle loudly || 크게 휘파람을 분다\n</choices>'; },
+    generateQuietPrompt: async ({ quietPrompt }) => { ST.quiet = quietPrompt; ST.quietN = (ST.quietN ?? 0) + 1;
+        if (/<route>|<facts>|<spoil>/.test(quietPrompt)) return '<route>\n- 서하와 비밀을 나눈다 | 둘 사이가 가까워짐\n- 경비원에게 들킨다 | 긴장감\n</route>\n<facts>\n- 연구실 문은 오른쪽에 있다\n- 서하는 우산을 두고 왔다\n</facts>\n<spoil>\n- 문을 연다 => 푸른 빛의 정체를 본다 || Open the door\n- 돌아간다 => 서하가 실망한다 || Turn back\n</spoil>';
+        return '<choices>\n[brave|gamble] Kick the door open || 문을 걷어찬다\n[rational|safe] Knock first || 먼저 노크한다\n[tease|none] Whistle loudly || 크게 휘파람을 분다\n</choices>'; },
 };
 window.SillyTavern = { getContext: () => ctxObj };
 window.toastr = { info() {}, success() {}, warning() {}, error(m) { console.warn('toast', m); } };

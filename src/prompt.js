@@ -43,6 +43,7 @@ function resultText(p) {
         L.push(c.crit ? RESULT.crit : c.fumble ? RESULT.fumble : c.ok ? RESULT.win : RESULT.lose);
     }
     if (rk.id === 'price') L.push(RESULT.price);
+    if (rk.id === 'trap') L.push(RESULT.trap);
     if (k?.res) L.push(k.res);
     if (L.length === 1) return '';
     L.push(lite() ? 'Record what actually happens as event lines in your <meatball> block — events, not numbers.' : '');

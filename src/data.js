@@ -14,10 +14,12 @@ export const RISKS = [
     { id: 'none', name: '보통', icon: '', tone: 'mid', w: 3, desc: '특별한 위험 없음', ai: 'ordinary stakes' },
     { id: 'safe', name: '안전', icon: '🛡', tone: 'good', w: 2, desc: '손해가 거의 없지만 얻는 것도 적음', ai: 'low stakes, low reward' },
     { id: 'gamble', name: '모험', icon: '🎲', tone: 'warn', w: 2, check: true, desc: '주사위를 굴림. 성공하면 크게 얻고 실패하면 크게 잃음', ai: 'bold: a big payoff if it works, a real cost if it fails' },
+    { id: 'trap', name: '함정', icon: '🪤', tone: 'bad', w: 1, off: true, disguise: 'safe', desc: '겉으론 「안전」처럼 보임. 이야기와 어긋난 데가 한 곳 있어서 잘 읽으면 알아챔. 고르면 함정 발동', ai: 'reads like a sensible, safe option, but ONE detail quietly contradicts what the story established (wrong door, wrong name, an offer too good). A careful reader can spot it. Never hint that it is a trap' },
     { id: 'price', name: '대가', icon: '💸', tone: 'warn', w: 1, desc: '확실히 얻고 확실히 잃음 (대가는 배지로 보여요)', ai: 'a sure gain that clearly costs something (money, time, trust). Do NOT write the cost in the option text' },
 ];
 
 export const RESULT = {
+    trap: 'It was a TRAP: the hidden flaw springs now. Show a concrete, lasting consequence — do not soften it.',
     price: 'Deliver the gain AND make {{user}} pay a fitting cost.',
     win: 'The gamble PAYS OFF: give a clear, tangible gain.',
     lose: 'It GOES WRONG: a real, recoverable cost.',

@@ -1,19 +1,21 @@
 // 선택지 창: 지금 고를 수 있는 답엔 목록 · 지난 답엔 고른 것 하나만 칩
 import { settings, ctx, esc, meta, saveMeta, kindOf, riskOf, kindsOn, risksOn, checkFor, rollCheck, userCount, lite, liteLuck, litePreview, setExtra } from './core.js';
 import { choicesOf, NUM_RE, TAG_RE, setInject, buildPrompt, rerollPrompt } from './prompt.js';
+import { guideHTML, gst } from './guide.js';
 
 const SLOT_SEL = '.ss-slot, .custom-ss-slot, .ml-msg';
-export const ui = { sel: null, open: new Set(), reroll: false, rerollText: '', rerolling: false, rolling: false, gen: false };
+export const ui = { sel: null, past: new Set(), open: false, reroll: false, rerollText: '', rerolling: false, rolling: false, gen: false, guide: false, hover: false, hoverBlock: false, side: false };
 
 const seedOf = (i, n) => `${ctx().chatId ?? ''}:${i}:${n}`;
 const badge = (r) => r.id === 'none' ? '' : `<span class="mbc-badge t-${r.tone}">${r.icon} ${esc(r.name)}</span>`;
-export const checkOf = (i, it, n) => checkFor(it.kind, it.risk, seedOf(i, n), it.label);
+const shownRisk = (id) => { const r = riskOf(id); return r.disguise ? riskOf(r.disguise) : r; }; // 함정은 「안전」으로 보임
+export const checkOf = (i, it, n) => checkFor(it.kind, shownRisk(it.risk).id, seedOf(i, n), it.label);
 const resText = (c) => c ? `🎲 ${c.roll}${c.mod ? `${c.mod > 0 ? '+' : '−'}${Math.abs(c.mod)}` : ''} ${c.crit ? '대성공' : c.fumble ? '대실패' : c.ok ? '성공' : '실패'}` : '';
 
 // ───── 지금 고를 수 있는 선택지 ─────
 function optHTML(i, it, n) {
     const k = kindOf(it.kind) ?? { icon: '•', name: it.kind };
-    const r = riskOf(it.risk), ch = checkOf(i, it, n), cost = litePreview(it.label);
+    const r = shownRisk(it.risk), ch = checkOf(i, it, n), cost = litePreview(it.label);
     const fit = liteLuck(it.label)?.fit ?? 0;
     const sel = ui.sel?.i === i && ui.sel?.n === n;
     return `<button class="mbc-opt${sel ? ' sel' : ''}" data-mbc-i="${i}" data-mbc-n="${n}">
@@ -23,7 +25,7 @@ function optHTML(i, it, n) {
     </button>`;
 }
 function detailHTML(i, it, n) {
-    const k = kindOf(it.kind), r = riskOf(it.risk), ch = checkOf(i, it, n), cost = litePreview(it.label);
+    const k = kindOf(it.kind), r = shownRisk(it.risk), ch = checkOf(i, it, n), cost = litePreview(it.label);
     const row = (ic, b, s) => `<div class="mbc-d-row"><span class="mbc-d-ic">${ic}</span><div class="mbc-d-txt"><b>${b}</b><small>${s}</small></div></div>`;
     return `<div class="mbc-detail">
         ${k ? row(k.icon, esc(k.name), esc(k.desc)) : ''}
@@ -39,21 +41,23 @@ function liveHTML(i, items) {
     const luck = ll?.rolled ? `<button class="mbc-chip" data-mbc-act="help" title="${esc(ll.text)}">🍀 ${ll.tier || '★'.repeat(ll.stars ?? 0)}</button>` : '';
     const head = `<div class="mbc-head"><span class="mbc-title">무엇을 할까요</span>${luck}<span class="mbc-sp"></span>
         <button class="mbc-chip" data-mbc-act="click" title="고르면 입력창에 넣을지 바로 보낼지 (눌러서 바꾸기)">${set.click === 'send' ? '➤<span class="t"> 바로 보내기</span>' : '↵<span class="t"> 입력창에</span>'}</button>
+        <button class="mbc-icon${ui.guide ? ' on' : ''}" data-mbc-act="guide" title="추천 (진행 · 사실 · 스포) — 누를 때만 AI 1회" aria-label="추천">🧭</button>
         <button class="mbc-icon${ui.reroll ? ' on' : ''}" data-mbc-act="reroll" title="선택지만 다시 받기" aria-label="선택지만 다시 받기">🔄</button>
         <button class="mbc-icon" data-mbc-act="help" title="읽는 법" aria-label="읽는 법">ⓘ</button>
         <button class="mbc-icon" data-mbc-act="edit" title="설정" aria-label="설정">⚙</button></div>`;
     const rr = ui.reroll ? `<div class="mbc-reroll"><input type="text" class="mbc-rr-in" placeholder="추가 지시 (비워도 돼요) · 예: 더 과감하게" value="${esc(ui.rerollText)}"><button class="mbc-go sm" data-mbc-act="rerollGo" ${ui.rerolling ? 'disabled' : ''}>${ui.rerolling ? '받는 중…' : '다시 받기'}</button></div>` : '';
     const det = set.confirm && ui.sel?.i === i && items[ui.sel.n] ? detailHTML(i, items[ui.sel.n], ui.sel.n) : '';
-    return `${head}${rr}<div class="mbc-list">${items.map((it, n) => optHTML(i, it, n)).join('')}</div>${det}`;
+    const list = items.length ? `<div class="mbc-list">${items.map((it, n) => optHTML(i, it, n)).join('')}</div>` : '<div class="mbc-gempty"><span>이 답엔 선택지가 없어요</span><button class="mbc-chip" data-mbc-act="reroll">🔄 선택지 받기</button></div>';
+    return `${head}${rr}${ui.guide ? guideHTML(i) : ''}${list}${det}`;
 }
 
 // ───── 지난 답: 고른 것 하나만 칩 (누르면 그때 선택지 전체 · 「여기서 다른 선택」) ─────
 function chipHTML(i, items, picked) {
     const it = items[picked.n] ?? { label: picked.shown ?? picked.label, kind: picked.kind };
     const k = kindOf(it.kind ?? picked.kind);
-    const open = ui.open.has(i);
+    const open = ui.past.has(i);
     const all = open ? `<div class="mbc-past">${items.map((x, n) => { const kk = kindOf(x.kind); const r = riskOf(x.risk); return `<div class="mbc-past-row${n === picked.n ? ' mine' : ''}"><span>${n === picked.n ? '✔' : '·'}</span><span class="nm">${kk?.icon ?? ''} ${esc(kk?.name ?? '')}</span><span class="tx">${esc(x.label)}</span>${badge(r)}</div>`; }).join('')}<div class="mbc-past-go"><button class="mbc-chip" data-mbc-act="branch" title="이 답에서 새 분기를 만들고 선택지를 다시 열어요">↪ 여기서 다른 선택</button></div></div>` : '';
-    return `<button class="mbc-pick" data-mbc-act="past" aria-expanded="${open}"><span class="nm">✔ ${k?.icon ?? ''} ${esc(k?.name ?? '')}</span><span class="tx">${esc(it.label)}</span>${picked.check ? `<span class="mbc-res ${picked.check.ok ? 'good' : 'bad'}">${resText(picked.check)}</span>` : ''}${picked.risk === 'price' ? '<span class="mbc-res">💸 대가</span>' : ''}<span class="mbc-more">${open ? '접기' : `선택지 ${items.length}개`}</span></button>${all}`;
+    return `<button class="mbc-pick" data-mbc-act="past" aria-expanded="${open}"><span class="nm">✔ ${k?.icon ?? ''} ${esc(k?.name ?? '')}</span><span class="tx">${esc(it.label)}</span>${picked.check ? `<span class="mbc-res ${picked.check.ok ? 'good' : 'bad'}">${resText(picked.check)}</span>` : ''}${picked.risk === 'price' ? '<span class="mbc-res">💸 대가</span>' : ''}${picked.risk === 'trap' ? '<span class="mbc-res bad">🪤 함정이었다</span>' : ''}<span class="mbc-more">${open ? '접기' : `선택지 ${items.length}개`}</span></button>${all}`;
 }
 
 // ───── 메시지에 붙이기 ─────
@@ -92,16 +96,19 @@ export function decorate(mesEl, lastAI, force = false) {
     const i = Number(mesEl.getAttribute('mesid'));
     const textEl = mesEl.querySelector('.mes_text');
     if (!textEl || Number.isNaN(i)) return;
-    const items = settings().enabled ? choicesOf(i) : null;
-    let panel = mesEl.querySelector('.mbc-panel');
-    if (!items) { panel?.remove(); return; }
-    stripRaw(textEl, items);
+    const set = settings();
     const live = i === lastAI && !ctx().chat?.[i + 1];
+    let items = set.enabled ? choicesOf(i) : null;
+    let panel = mesEl.querySelector('.mbc-panel');
+    if (!items && !(live && set.enabled)) { panel?.remove(); return; }
+    if (items) stripRaw(textEl, items);
     if (live && ui.gen) { panel?.remove(); return; } // 받는 중엔 그리지 않음
+    items ??= [];
+    if (live && set.view === 'side' && window.innerWidth >= 700 && items.length) { panel?.remove(); renderSide(i, items); return; }
     const picked = live ? null : pickedFor(i);
-    if (!live && !picked) { panel?.remove(); return; } // 고르지 않고 직접 쓴 답이면 칩도 없음
+    if (!live && (!picked || !items.length)) { panel?.remove(); return; } // 고르지 않고 직접 쓴 답이면 칩도 없음
     const typing = panel?.contains(document.activeElement) && document.activeElement.classList.contains('mbc-rr-in');
-    const key = JSON.stringify(live ? [items.map(x => x.label + x.kind + x.risk), ui.sel, ui.reroll, ui.rerolling, settings().click, settings().confirm, liteLuck()?.stars ?? 0, settings()._rev] : [items.length, picked.n, picked.check?.roll, ui.open.has(i)]);
+    const key = JSON.stringify(live ? [items.map(x => x.label + x.kind + x.risk), ui.sel, ui.reroll, ui.rerolling, ui.guide, gst.busy, gst.tab, JSON.stringify(ctx().chat?.[i]?.extra?.mbcGuide ?? 0).length, settings().click, settings().confirm, liteLuck()?.stars ?? 0, settings()._rev] : [items.length, picked.n, picked.check?.roll, ui.past.has(i)]);
     if (!panel) panel = document.createElement('div');
     if (!typing && (force || panel.dataset.key !== key)) { panel.innerHTML = live ? liveHTML(i, items) : chipHTML(i, items, picked); panel.dataset.key = key; }
     panel.className = `mbc-panel ${live ? 'live' : 'done'}`;
@@ -206,4 +213,79 @@ export async function helpSheet() {
     const c = ctx(), el = document.createElement('div');
     el.innerHTML = `<h3 class="mbc-sheet-title">선택지 읽는 법</h3>${html}`;
     if (c.Popup && c.POPUP_TYPE) await new c.Popup(el, c.POPUP_TYPE.TEXT, '', { wide: false, allowVerticalScrolling: true, okButton: '닫기' }).show();
+}
+
+// ───── 옆 「?」 동그라미 → 올리면 부채꼴 (보는 방식 「옆 동그라미」 · 넓은 화면만) ─────
+const sideOpen = () => ui.open || !!ui.sel || ui.reroll || ui.guide || ui.hover;
+export function dropSide() { document.getElementById('mbc-side')?.remove(); }
+function sidePill(i, it, n) {
+    const k = kindOf(it.kind) ?? { icon: '•', name: it.kind }, r = shownRisk(it.risk), ch = checkOf(i, it, n);
+    const sel = ui.sel?.i === i && ui.sel?.n === n;
+    return `<button class="mbc-opt ring${sel ? ' sel' : ''}" style="--k:${n}" title="${esc(it.label)}" data-mbc-i="${i}" data-mbc-n="${n}"><span class="mbc-kind"><span class="ic">${k.icon}</span></span><span class="mbc-ring-txt"><span class="mbc-ring-k">${esc(k.name)}${r.id !== 'none' ? ` · ${r.icon} ${esc(r.name)}` : ''}${ch ? ` · ${ch.pct}%` : ''}</span><span class="mbc-label">${esc(it.label)}</span></span></button>`;
+}
+function sideHTML(i, items) {
+    const set = settings();
+    const sel = ui.sel?.i === i ? items[ui.sel.n] : null;
+    const ll = liteLuck();
+    const tools = `<div class="mbc-tools">${ll?.rolled ? `<button class="mbc-tool" data-mbc-act="help" title="${esc(ll.text)}">🍀</button>` : ''}<button class="mbc-tool${ui.guide ? ' on' : ''}" data-mbc-act="guide" title="추천 (진행 · 사실 · 스포)">🧭</button><button class="mbc-tool" data-mbc-act="click" title="${set.click === 'send' ? '고르면 바로 보내기' : '고르면 입력창에'} (눌러서 바꾸기)">${set.click === 'send' ? '➤' : '↵'}</button><button class="mbc-tool${ui.reroll ? ' on' : ''}" data-mbc-act="reroll" title="선택지만 다시 받기">🔄</button><button class="mbc-tool" data-mbc-act="help" title="읽는 법">ⓘ</button><button class="mbc-tool" data-mbc-act="edit" title="설정">⚙</button></div>`;
+    const card = ui.reroll ? `<div class="mbc-sidecard"><div class="mbc-reroll"><input type="text" class="mbc-rr-in" placeholder="추가 지시 (비워도 돼요)" value="${esc(ui.rerollText)}"><button class="mbc-go sm" data-mbc-act="rerollGo" ${ui.rerolling ? 'disabled' : ''}>${ui.rerolling ? '받는 중…' : '다시 받기'}</button></div></div>`
+        : ui.guide ? `<div class="mbc-sidecard">${guideHTML(i)}</div>`
+        : sel && set.confirm ? `<div class="mbc-sidecard">${detailHTML(i, sel, ui.sel.n)}</div>` : '';
+    const hub = `<button class="mbc-sidehub" data-mbc-act="dock" title="선택지 ${items.length}개"><b>${sel ? kindOf(sel.kind)?.icon ?? '?' : '?'}</b><small>${items.length}</small></button>`;
+    return `<div class="mbc-scrim"></div>${tools}<div class="mbc-fan">${items.map((it, n) => sidePill(i, it, n)).join('')}</div>${hub}${card}`;
+}
+function renderSide(i, items) {
+    ui.side = true;
+    let el = document.getElementById('mbc-side');
+    if (!el) { el = document.createElement('div'); el.id = 'mbc-side'; document.body.append(el); wireSide(el); }
+    const typing = el.contains(document.activeElement) && document.activeElement.classList.contains('mbc-rr-in');
+    const key = JSON.stringify([i, items.map(x => x.label + x.kind + x.risk), ui.sel, ui.reroll, ui.rerolling, ui.guide, gst.busy, gst.tab, JSON.stringify(ctx().chat?.[i]?.extra?.mbcGuide ?? 0).length, settings().click, settings()._rev]);
+    if (!typing && el.dataset.key !== key) { el.innerHTML = sideHTML(i, items); el.dataset.key = key; }
+    el.dataset.i = String(i);
+    el.className = `mbc-panel mbc-side${sideOpen() ? ' open' : ''}${ui.sel?.i === i ? ' has-sel' : ''}`;
+    placeSide();
+}
+export function placeSide() {
+    const el = document.getElementById('mbc-side'); if (!el) return;
+    const chatEl = document.getElementById('chat'); if (!chatEl) return;
+    const c = chatEl.getBoundingClientRect();
+    el.style.display = c.width < 50 || c.height < 50 || chatEl.offsetParent === null ? 'none' : '';
+    const mes = document.querySelector(`#chat .mes[mesid="${el.dataset.i}"]`)?.getBoundingClientRect();
+    const roomR = window.innerWidth - c.right, roomL = c.left;
+    let x, dir = 'left';
+    if (roomR >= 64) x = c.right + Math.min(roomR / 2, 48);
+    else if (roomL >= 64) { x = c.left - Math.min(roomL / 2, 48); dir = 'right'; }
+    else x = c.right - 40;
+    const y = Math.max(c.top + 48, Math.min((mes ? mes.bottom : c.bottom) - 48, c.bottom - 48));
+    el.style.left = `${Math.round(x)}px`; el.style.top = `${Math.round(y)}px`; el.dataset.dir = dir; el.dataset.cardUp = window.innerHeight - y < 330 ? '1' : ''; el.dataset.toolsDown = y - c.top < 210 ? '1' : ''; // 위가 좁으면 단추 줄을 아래로
+    if (!el.dataset.solid) { // 반투명 테마여도 알약은 불투명
+        const v = getComputedStyle(document.documentElement).getPropertyValue('--SmartThemeBlurTintColor').trim().match(/rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/);
+        if (v) el.style.setProperty('--solid', `rgb(${v[1]}, ${v[2]}, ${v[3]})`);
+        el.dataset.solid = '1';
+    }
+    // 알약 높이를 재서 활 모양으로 위에서 아래로 (안 겹침 · 채팅 안에서만)
+    const opts = [...el.querySelectorAll('.mbc-fan > .mbc-opt')];
+    const n = opts.length; if (!n) return;
+    const gap = 6, hs = opts.map(o => o.offsetHeight || 40);
+    const H = hs.reduce((a, h) => a + h, 0) + gap * (n - 1), R = Math.max(130, H / 2 + 30);
+    const topB = c.top + 8 - y, botB = c.bottom - 8 - y;
+    let y0 = -H / 2; if (y0 + H > botB) y0 = botB - H; if (y0 < topB) y0 = topB;
+    const sgn = dir === 'right' ? 1 : -1;
+    let acc = y0;
+    opts.forEach((o, k) => {
+        const cy = acc + hs[k] / 2; acc += hs[k] + gap;
+        o.style.setProperty('--tx', `${(sgn * Math.max(40, Math.sqrt(Math.max(0, R * R - cy * cy)))).toFixed(1)}px`);
+        o.style.setProperty('--ty', `${cy.toFixed(1)}px`);
+    });
+    el.style.setProperty('--R', `${R}px`);
+}
+let sideT = 0;
+function wireSide(el) {
+    el.addEventListener('mouseenter', () => { clearTimeout(sideT); if (!ui.hover && !ui.hoverBlock) { ui.hover = true; el.classList.add('open'); } });
+    el.addEventListener('mouseleave', () => { clearTimeout(sideT); ui.hoverBlock = false; sideT = setTimeout(() => { ui.hover = false; if (!sideOpen()) el.classList.remove('open'); }, 350); });
+    if (wireSide.done) return; wireSide.done = true;
+    let raf = 0;
+    const re = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(placeSide); };
+    document.addEventListener('scroll', (e) => { if (e.target?.id === 'chat') re(); }, { passive: true, capture: true });
+    window.addEventListener('resize', re, { passive: true });
 }
