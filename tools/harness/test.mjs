@@ -33,9 +33,9 @@ const last = (p) => p.evaluate(() => T.ST.sent[T.ST.sent.length - 1]);
 const blocks = (t) => (t.match(/<choices>\s*\[/g) ?? []).length + (t.match(/\[(rational|persona|need|tease|brave|fate)\|/g) ?? []).length;
 const visibleText = (p) => p.evaluate(() => [...document.querySelectorAll('#chat .mes_text')].filter(t => !T.ST.chat[Number(t.closest('.mes').getAttribute('mesid'))]?.is_user).map(t => { const c = t.cloneNode(true); c.querySelectorAll('.mbc-panel').forEach(x => x.remove()); return c.textContent; }).join('\n'));
 
-for (const [lite, mode] of [['0', 'chat'], ['1', 'chat'], ['1', 'text']]) {
-    console.log(`▶ 라이트 ${lite === '1' ? '있음' : '없음'} · ${mode === 'chat' ? '채팅 완성' : '글 완성'}`);
-    const p = await page(`lite=${lite}&mode=${mode}`);
+for (const [lite, mode, lm] of [['0', 'chat', ''], ['1', 'chat', ''], ['1', 'text', ''], ['1', 'chat', 'B']]) {
+    console.log(`▶ 라이트 ${lite === '1' ? `있음(${lm || 'A'} 모드)` : '없음'} · ${mode === 'chat' ? '채팅 완성' : '글 완성'}`);
+    const p = await page(`lite=${lite}&mode=${mode}${lm ? `&lmode=${lm}&pend=1` : ''}`);
     // ① 10턴: 매 턴 고르고 보내기
     const unchosen = [];
     if (lite === '1') ok('라이트: 대가는 배지에만 (선택지 글엔 없음)', await p.evaluate(() => { const o = document.querySelector('.mbc-panel.live .mbc-opt[data-mbc-n="3"]'); return /−1,500원/.test(o.querySelector('.mbc-cost')?.textContent ?? '') && !/대가:/.test(o.querySelector('.mbc-label').childNodes[0].textContent); }));
@@ -52,6 +52,13 @@ for (const [lite, mode] of [['0', 'chat'], ['1', 'chat'], ['1', 'text']]) {
         ok(`T${t} 안 고른 선택지 글 0개`, leak.length === 0, leak.join(','));
         const need = await p.evaluate(() => { const m = T.ST.chat[T.ST.chat.length - 2]; const x = m.extra?.mbc; return !!(x && (x.check || x.risk === 'price' || x.kind === 'need')); });
         ok(`T${t} 결과 지시: 주사위 · 대가가 있을 때만 1번`, (s.text.match(/\[CHOICE RESULT\]/g) ?? []).length === (need ? 1 : 0));
+        const res = s.text.match(/\[CHOICE RESULT\][^\n]*/)?.[0] ?? '';
+        if (lm === 'B') {
+            ok(`T${t} B 모드: 결과 지시 · 선택지 안내에 <meatball> 없음`, !/<meatball>/.test(res) && !/<meatball>/.test(s.text.match(/\[CHOICES\][^\n]*/)?.[0] ?? '') && (!need || /Show the outcome clearly in the story/.test(res)));
+        } else if (lite === '1' && need) ok(`T${t} A 모드: 결과를 <meatball> 사건 줄로`, /<meatball>/.test(res));
+        const rec = await p.evaluate(() => T.ST.chat[T.ST.chat.length - 2].extra?.mbc);
+        const full = rec && rec.v === 1 && Number.isInteger(rec.n) && rec.kind && rec.risk && rec.label && 'outcome' in rec && 'trap' in rec && 'price' in rec && (rec.risk !== 'gamble' || (rec.check && Number.isInteger(rec.check.roll) && Number.isInteger(rec.check.dc) && typeof rec.check.ok === 'boolean' && rec.outcome));
+        ok(`T${t} 고른 기록(mbc)에 결과가 빠짐없이`, !!full, JSON.stringify(rec));
         ok(`T${t} 고른 기록(extra)은 프롬프트에 없음`, !/"mbc"|mbcBlock/.test(s.text));
         const dom = await p.evaluate(() => ({ live: document.querySelectorAll('.mbc-panel.live').length, done: document.querySelectorAll('.mbc-panel.done').length, oldOpts: document.querySelectorAll('.mbc-panel.done .mbc-opt').length }));
         ok(`T${t} 화면: 지금 선택지 1개 · 지난 칩 ${t}개 · 지난 목록 0`, dom.live === 1 && dom.done === t && dom.oldOpts === 0, JSON.stringify(dom));
@@ -95,6 +102,7 @@ for (const [lite, mode] of [['0', 'chat'], ['1', 'chat'], ['1', 'text']]) {
     // 분기에서 고르고 보내기 → 프롬프트 깨끗
     await pick(p, 1); await p.evaluate((t) => T.send(null, 99), 0);
     ok('분기 뒤 보낸 프롬프트: 선택지 블록 0', blocks((await last(p)).text) === 0);
+    if (lm === 'B') ok('B 모드: 라이트 pendingChoice()에도 넘김', await p.evaluate(() => (T.ST.pending ?? []).length >= 10 && T.ST.pending.every(x => x.v === 1 && Number.isInteger(x.mesId))));
     console.log(`  page errors: ${p.errs.length ? p.errs.join(' | ') : '없음'}`); ok('페이지 오류 없음', p.errs.length === 0);
     await p.close();
 }

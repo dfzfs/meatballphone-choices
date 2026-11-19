@@ -90,7 +90,9 @@ export function liteState() {
 export const liteClear = () => { _stAt = 0; };
 export const liteLuck = (label = '') => call(lite()?.luck, label);
 export const litePreview = (label) => call(lite()?.preview, label);
-export const liteScene = () => call(lite()?.scene); // 라이트가 열면: { goods: [{ name, price }], people: [{ name, want }] }
+export const liteScene = () => call(lite()?.scene);
+// 라이트 모드: A = 본편 AI가 <meatball> 사건 줄을 씀 · B = 분류 모델이 사건을 고름 (mode()가 없으면 A)
+export const liteMode = () => { const L = lite(); if (!L) return null; const m = String(call(L.mode) ?? 'A').toUpperCase(); return m.startsWith('B') ? 'B' : 'A'; }; // 라이트가 열면: { goods: [{ name, price }], people: [{ name, want }] }
 
 // ───── 주사위: d20 + 라이트 diceParts() + 오늘 운세 ─────
 export function checkFor(kindId, riskId, seed, label = '') {
