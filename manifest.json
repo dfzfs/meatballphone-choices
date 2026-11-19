@@ -7,7 +7,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "dfzfs",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "homePage": "https://github.com/dfzfs/meatballphone-choices",
     "auto_update": true
 }
