@@ -1,0 +1,85 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="../style.css">
+<style>
+:root{--SmartThemeBodyColor:#e6e4df;--SmartThemeBlurTintColor:#23252b}
+body{margin:0;background:#16171b;color:#e6e4df;font-family:"Noto Sans CJK KR","Noto Sans KR",sans-serif;font-size:15px}
+#chat{max-width:860px;margin:0 auto;padding:16px;height:100vh;overflow:auto;box-sizing:border-box}
+.mes{padding:12px 16px;margin-bottom:12px;border-radius:12px;background:#1d1f24}
+.name{font-weight:700;margin-bottom:6px;color:#c9b38a}
+.mes_text p{margin:0 0 .7em}
+.ss-slot .ss-msgcard{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ss-mchip{font-size:12px;padding:2px 8px;border-radius:99px;background:#2b2e36;border:1px solid #3a3e48}
+.ss-mchip.neg{color:#ff8b8b}.ss-mchip.pos{color:#8be0a8}
+#pop{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-start;justify-content:center;padding:24px;overflow:auto;z-index:99999}
+#pop .box{background:#23252b;border-radius:16px;padding:16px;width:min(720px,100%);color:#e6e4df}
+</style></head><body>
+<div id="chat"></div><div id="extensions_settings2" hidden></div><textarea id="send_textarea" hidden></textarea>
+<div id="pop"><div class="box"></div></div>
+<script>
+const Q=new URLSearchParams(location.search);
+const L={}; const es={on:(e,f)=>(L[e]??=[]).push(f),emit:(e,...a)=>(L[e]??[]).forEach(f=>f(...a))};
+const ET=Object.fromEntries(['APP_READY','GENERATION_AFTER_COMMANDS','MESSAGE_SENT','CHAT_CHANGED','CHARACTER_MESSAGE_RENDERED','USER_MESSAGE_RENDERED','MESSAGE_UPDATED','MESSAGE_SWIPED','MESSAGE_EDITED','GENERATION_ENDED','GENERATION_STOPPED','MESSAGE_DELETED','MORE_MESSAGES_LOADED'].map(x=>[x,x]));
+const n=Number(Q.get('n')||6);
+const LINES={
+ rational:'[rational|safe] 경비원에게 출입증을 보여 주고 정식으로 들어간다',
+ careful:'[careful|none] 문 앞 발자국부터 자세히 살핀다',
+ need:'[need|price] 매점에서 컵라면부터 사 먹는다 (대가: 돈 −1,500)',
+ flirt:'[flirt|gamble] 서하에게 "같이 가 줄래?" 하고 손을 내민다',
+ lie:'[lie|trap] 3층 왼쪽 연구실에서 왔다고 둘러댄다',
+ weird:'[weird|cursed] 복도 끝에서 부르는 목소리를 따라간다',
+ tease:'[tease|none] 서하 어깨를 툭 치며 겁먹었냐고 놀린다',
+ brave:'[brave|gamble] 잠긴 문을 어깨로 밀어 연다',
+ fate:'[fate|gamble] 동전을 던져 앞면이면 들어간다',
+ wait:'[wait|safe] 계단참에 숨어 누가 나오는지 지켜본다',
+};
+const order=['rational','careful','need','flirt','lie','weird','tease','brave','fate','wait'].slice(0,n);
+const choiceText=order.map(k=>LINES[k]).join('\n');
+const chat=[
+ {is_user:false,name:'서하',mes:'비가 그친 캠퍼스는 이상하게 조용했다.'},
+ {is_user:true,name:'나',mes:'연구동으로 간다.'},
+ {is_user:false,name:'서하',mes:`연구동 3층 복도 끝, 오른쪽 연구실 문틈으로 푸른 빛이 새어 나온다. 서하가 네 소매를 살짝 잡는다.\n\n"…여기, 아까부터 누가 있었어."\n\n<choices>\n${choiceText}\n</choices>\n\n<meatball>\nstat: 에너지 -10\n</meatball>`},
+];
+const set={}; if(Q.get('layout'))set.layout=Q.get('layout');
+const ctxObj={chat,chatId:'demo',chatMetadata:{},extensionSettings:{},saveSettingsDebounced(){},saveMetadata(){},eventSource:es,event_types:ET,
+ setExtensionPrompt(k,v){ctxObj.extensionPrompts[k]={value:v}},
+ extensionPrompts:{statussim_state:{value:Q.get('mb')==='0'?'':'[STATE]\n{{user}} gauges: 체력 72/100 · 허기 12/100 · 에너지 18/100 · 위생 60/100\n{{user}} attributes: 힘 +1 · 민첩 +2 · 지능 +3 · 매력 +1\nMoney: 8,200 원 · Items: 우산\n3월 14일 밤'}},
+ POPUP_TYPE:{TEXT:1},
+ Popup:class{constructor(el){this.el=el}show(){const p=document.getElementById('pop');p.firstElementChild.replaceChildren(this.el);p.style.display='flex';return new Promise(()=>{})}},
+ messageFormatting:(t)=>t,
+};
+window.SillyTavern={getContext:()=>ctxObj};
+if(Q.get('lite')){ window.MeatballLite={version:'0.6.0',ready:()=>true,
+  state:()=>({t:1200,loc:'연구동',with:['서하'],cash:1200,currency:'원',needs:{hunger:12,energy:18,hygiene:60},status:[{name:'감기',kind:'bad'}],danger:[{key:'hunger',name:'허기',icon:'🍞',stage:'위험',dice:-2},{key:'energy',name:'에너지',icon:'⚡',stage:'주의',dice:-1}],attrs:{힘:1,민첩:2,지능:3,매력:1}}),
+  preview:(l)=>/컵라면/.test(l)?{text:'−1,500원 · 허기 +40',ok:false}:/손/.test(l)?{text:'🎁 · 💞 서하',ok:true}:null,
+  luck:(l='')=>({rolled:true,stars:4,tier:'',text:'★★★★☆ 서하에게 먼저 말을 걸면 좋은 날 · 다툼 조심',fit:/서하/.test(l)?1:/밀어/.test(l)?-1:0}),
+  diceParts:(a)=>[...(a?[{why:a,n:{힘:1,민첩:2,지능:3,매력:1}[a]??0}]:[]),{why:'허기 위험',n:-2}],
+  paused:()=>false};
+  ctxObj.extensionPrompts.statussim_state={value:''}; }
+window.toastr={info(){},success(){},warning(){},error(){}};
+function render(){
+ const c=document.getElementById('chat');
+ c.innerHTML=chat.map((m,i)=>{
+  let html=m.mes.replace(/<meatball>[\s\S]*?<\/meatball>/,'').replace(/<\/?choices>/g,'').split(/\n\n+/).map(p=>`<p>${p.trim().replace(/\n/g,'<br>')}</p>`).join('');
+  const slot=!m.is_user&&i===2?`<div class="ss-slot"><div class="ss-msgcard ss-scope"><span class="ss-mchip neg">⚡ 에너지 −10 · 밤샘</span><span class="ss-mchip">📍 연구동 3층</span><span class="ss-mchip">🕐 밤</span></div></div>`:'';
+  return `<div class="mes${i===chat.length-1?' last_mes':''}" mesid="${i}"><div class="name">${m.name}</div><div class="mes_text">${html}${slot}</div></div>`;
+ }).join('');
+}
+render();
+window.__demo={ctxObj,es,chat,render};
+</script>
+<script type="module">
+const Q=new URLSearchParams(location.search);
+const { settings } = await import('../src/core.js');
+await import('../index.js');
+const s=settings();
+if(Q.get('layout'))s.layout=Q.get('layout');
+if(Q.get('theme'))s.look.theme=Q.get('theme');
+if(Q.get('danger')){s.danger.on=true; s.fx.scope=Q.get('scope')||'chat'; window.__demo.ctxObj.chatMetadata.mbChoices={pending:null,reset:-1};
+  const h=Number(Q.get('danger')); // 위험도 흉내: 사용자 메시지에 함정 선택 기록
+  window.__demo.chat[1].extra={mbc:{kind:'weird',risk:'trap',label:'x',check:null}}; s.risks.find(r=>r.id==='trap').heat=h; }
+window.__demo.es.emit('APP_READY');
+if(Q.get('sel')){ setTimeout(()=>document.querySelector(`.mbc-opt[data-mbc-n="${Q.get('sel')}"]`)?.click(),300); }
+if(Q.get('group')){ setTimeout(()=>document.querySelector(`.mbc-group[data-g="${Q.get('group')}"]`)?.click(),300); }
+if(Q.get('edit')){ const { openEditor } = await import('../src/editor.js'); setTimeout(()=>openEditor(Q.get('edit')),300); }
+if(Q.get('help')){ const { helpSheet } = await import('../src/panel.js'); setTimeout(()=>helpSheet(),300); }
+</script></body></html>
