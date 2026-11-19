@@ -119,6 +119,14 @@ function watch() {
 }
 
 function init() {
+    // 🔁 옛 「미트볼 라이트 선택지」 폴더와 새 「meatballphone-choices」가 같이 깔려 있으면 새 쪽만 돈다
+    const folder = (import.meta.url.match(/third-party\/([^/]+)\//) ?? [])[1] ?? '', hasNew = [...document.querySelectorAll('script[src]')].some(e => /third-party\/meatballphone-choices\//i.test(e.src));
+    if ((folder && folder !== 'meatballphone-choices' && hasNew) || globalThis.__meatballChoicesBoot) {
+        console.warn(LOG, `두 번 깔려 있어서 이쪽(${folder || '?'})은 쉽니다.`);
+        setTimeout(() => globalThis.toastr?.warning?.(`미트볼폰 선택지가 두 번 깔려 있어요. 실리태번 › 확장 관리에서 옛 「${folder || '선택지'}」를 지워 주세요.`, '미트볼폰 선택지'), 1500);
+        return;
+    }
+    globalThis.__meatballChoicesBoot = folder || 'dev';
     const { eventSource, event_types: E } = ctx();
     settings(); meta();
     renderSettings();
