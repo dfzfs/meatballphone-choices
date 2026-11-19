@@ -1,0 +1,17 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="../../style.css">
+<style>
+:root{--SmartThemeBodyColor:#e6e4df;--SmartThemeBlurTintColor:rgba(35,37,43,.9);--ml-accent:#e07a5f}
+body{margin:0;background:#16171b;color:#e6e4df;font-family:"Noto Sans CJK KR",sans-serif;font-size:15px}
+#chat{max-width:760px;margin:0 auto;padding:16px;height:100vh;overflow:auto;box-sizing:border-box}
+.mes{padding:12px 16px;margin-bottom:12px;border-radius:12px;background:#1d1f24}
+.name{font-weight:700;margin-bottom:6px;color:#c9b38a}.mes_text p{margin:0 0 .7em}
+.ml-msg{display:flex;gap:6px;margin-top:6px}.ml-chip{font-size:12px;padding:2px 8px;border-radius:99px;background:#2b2e36}
+#pop{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-start;justify-content:center;padding:24px;overflow:auto;z-index:99999}
+#pop .box{background:#23252b;border-radius:16px;padding:16px;width:min(560px,100%)}
+</style></head><body>
+<div id="chat"></div><div id="extensions_settings2" hidden></div><textarea id="send_textarea" hidden></textarea><button id="send_but" hidden></button>
+<div id="pop"><div class="box"></div></div>
+<script src="stub.js"></script>
+<script type="module">await import('../../index.js'); window.__ready = true;</script>
+</body></html>

@@ -1,0 +1,157 @@
+// 시험: node tools/harness/test.mjs  (playwright 필요 · PW=playwright 경로 · CHROME=크롬 경로)
+// 정리 · 프롬프트 · 분기 · 삭제 · 스와이프 · 이어쓰기 · 재생성 · 다시 열기 · 다시 받기 · 라이트 있음/없음 · 채팅 완성/글 완성 · 휴대폰 폭
+import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
+const { chromium } = await import(process.env.PW ?? 'playwright');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const srv = http.createServer((q, r) => { const f = path.join(root, decodeURIComponent(q.url.split('?')[0])); fs.readFile(f, (e, d) => { if (e) { r.writeHead(404); r.end(); return; } r.writeHead(200, { 'content-type': f.endsWith('.js') || f.endsWith('.mjs') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : 'text/html; charset=utf-8' }); r.end(d); }); }).listen(0);
+const port = srv.address().port;
+const browser = await chromium.launch(process.env.CHROME ? { executablePath: process.env.CHROME } : {});
+let pass = 0, fail = 0;
+const ok = (name, cond, info = '') => { if (cond) pass++; else { fail++; console.log(`  ✗ ${name}${info ? ` — ${info}` : ''}`); } };
+
+async function page(q, w = 1000) {
+    const p = await browser.newPage({ viewport: { width: w, height: 900 } });
+    const errs = []; p.on('pageerror', e => errs.push(e.message));
+    await p.goto(`http://localhost:${port}/tools/harness/page.html?${q}`);
+    await p.waitForFunction(() => window.__ready);
+    await p.evaluate(() => {
+        T.ST.reply = (n, type) => { const s = type === 'swipe' ? 'S' : 'T'; return `장면 ${n}.\n\n<choices>\n[rational|safe] ${s}${n}-a 출입증을 보여 준다\n[persona|none] ${s}${n}-b 서하를 안심시킨다\n[brave|gamble] ${s}${n}-c 문을 밀어 연다\n[need|price] ${s}${n}-d 컵라면부터 산다 (대가: 돈 −1,500)\n</choices>\n\n<meatball>\nloc: 연구동\n</meatball>`; };
+        T.ST.chat.push(T.aiMsg(T.ST.reply(0, 'normal')));
+    });
+    await p.evaluate(async () => { T.render(); await T.es.emit('APP_READY'); await T.es.emit('CHAT_CHANGED'); await T.wait(150); });
+    p.errs = errs;
+    return p;
+}
+// 지금 선택지에서 n번을 골라(두 번 누르기) 입력창에 들어올 때까지
+async function pick(p, n) {
+    await p.click(`.mbc-panel.live .mbc-opt[data-mbc-n="${n}"]`);
+    await p.click('.mbc-panel.live [data-mbc-act="go"]');
+    await p.waitForFunction(() => document.getElementById('send_textarea').value.length > 0, null, { timeout: 4000 });
+    return p.evaluate(() => document.getElementById('send_textarea').value);
+}
+const last = (p) => p.evaluate(() => T.ST.sent[T.ST.sent.length - 1]);
+const blocks = (t) => (t.match(/<choices>\s*\[/g) ?? []).length + (t.match(/\[(rational|persona|need|tease|brave|fate)\|/g) ?? []).length;
+const visibleText = (p) => p.evaluate(() => [...document.querySelectorAll('#chat .mes_text')].filter(t => !T.ST.chat[Number(t.closest('.mes').getAttribute('mesid'))]?.is_user).map(t => { const c = t.cloneNode(true); c.querySelectorAll('.mbc-panel').forEach(x => x.remove()); return c.textContent; }).join('\n'));
+
+for (const [lite, mode] of [['0', 'chat'], ['1', 'chat'], ['1', 'text']]) {
+    console.log(`▶ 라이트 ${lite === '1' ? '있음' : '없음'} · ${mode === 'chat' ? '채팅 완성' : '글 완성'}`);
+    const p = await page(`lite=${lite}&mode=${mode}`);
+    // ① 10턴: 매 턴 고르고 보내기
+    const unchosen = [];
+    if (lite === '1') ok('라이트: 대가는 배지에만 (선택지 글엔 없음)', await p.evaluate(() => { const o = document.querySelector('.mbc-panel.live .mbc-opt[data-mbc-n="3"]'); return /−1,500원/.test(o.querySelector('.mbc-cost')?.textContent ?? '') && !/대가:/.test(o.querySelector('.mbc-label').childNodes[0].textContent); }));
+    else ok('라이트 없음: 대가 배지 없음 · 글에도 없음', await p.evaluate(() => !document.querySelector('.mbc-cost') && ![...document.querySelectorAll('.mbc-label')].some(x => /대가:/.test(x.textContent))));
+    for (let t = 1; t <= 10; t++) {
+        const k = t % 4;
+        const label = await pick(p, k);
+        ok(`T${t} 입력창엔 원문 · 대가 글 없음`, !/대가:/.test(label), label);
+        for (const x of ['a', 'b', 'c', 'd']) if (x !== 'abcd'[k]) unchosen.push(`T${t - 1}-${x}`);
+        await p.evaluate((t) => T.send(null, t), t);
+        const s = await last(p);
+        ok(`T${t} 보낸 프롬프트에 선택지 블록 0개`, blocks(s.text) === 0, String(blocks(s.text)));
+        const leak = unchosen.filter(u => s.text.includes(u));
+        ok(`T${t} 안 고른 선택지 글 0개`, leak.length === 0, leak.join(','));
+        const need = await p.evaluate(() => { const m = T.ST.chat[T.ST.chat.length - 2]; const x = m.extra?.mbc; return !!(x && (x.check || x.risk === 'price' || x.kind === 'need')); });
+        ok(`T${t} 결과 지시: 주사위 · 대가가 있을 때만 1번`, (s.text.match(/\[CHOICE RESULT\]/g) ?? []).length === (need ? 1 : 0));
+        ok(`T${t} 고른 기록(extra)은 프롬프트에 없음`, !/"mbc"|mbcBlock/.test(s.text));
+        const dom = await p.evaluate(() => ({ live: document.querySelectorAll('.mbc-panel.live').length, done: document.querySelectorAll('.mbc-panel.done').length, oldOpts: document.querySelectorAll('.mbc-panel.done .mbc-opt').length }));
+        ok(`T${t} 화면: 지금 선택지 1개 · 지난 칩 ${t}개 · 지난 목록 0`, dom.live === 1 && dom.done === t && dom.oldOpts === 0, JSON.stringify(dom));
+        const vis = await visibleText(p);
+        ok(`T${t} 본문에 선택지 줄 안 보임`, !/T\d+-[abcd]/.test(vis));
+    }
+    // ② 직접 쓴 답 → 결과 지시 없음 · 칩 없음
+    await p.evaluate(() => T.send('그냥 복도를 걷는다', 11));
+    ok('직접 쓴 답: 결과 지시 없음', !/\[CHOICE RESULT\]/.test((await last(p)).text));
+    ok('직접 쓴 답: 칩 없음', await p.evaluate(() => !document.querySelector(`.mes[mesid="${T.ST.chat.length - 3}"] .mbc-panel`)));
+    // ③ 고르고 보내기 → 재생성하면 같은 결과 지시 · 그다음 직접 쓰면 없음 · 빈 입력 생성도 없음
+    await pick(p, 2); await p.evaluate(() => T.send(null, 12)); // 모험(주사위)
+    const r1 = (await last(p)).text.match(/\[CHOICE RESULT\][^\n]*/)?.[0];
+    await p.evaluate(() => T.regenerate(12));
+    const r2 = (await last(p)).text.match(/\[CHOICE RESULT\][^\n]*/)?.[0];
+    ok('재생성: 같은 결과 지시를 다시 씀', !!r1 && r1 === r2);
+    await p.evaluate(() => T.send('', 13));
+    ok('빈 입력으로 한 번 더: 결과 지시 없음', !/\[CHOICE RESULT\]/.test((await last(p)).text));
+    await p.evaluate(() => T.send('문을 닫는다', 14));
+    ok('그다음 직접 쓴 답: 결과 지시 없음', !/\[CHOICE RESULT\]/.test((await last(p)).text));
+    // ④ 이어쓰기: 선택지 블록 · 안내 없음
+    await p.evaluate(() => T.cont());
+    const c = (await last(p)).text;
+    ok('이어쓰기: 선택지 블록 0 · 안내 없음', blocks(c) === 0 && !/\[CHOICES\]/.test(c));
+    // ⑤ 다시 열기
+    const before = await p.evaluate(() => [document.querySelectorAll('.mbc-panel.live .mbc-opt').length, document.querySelectorAll('.mbc-panel.done').length]);
+    await p.evaluate(() => T.reopen());
+    const after = await p.evaluate(() => [document.querySelectorAll('.mbc-panel.live .mbc-opt').length, document.querySelectorAll('.mbc-panel.done').length]);
+    ok('다시 열기: 지금 선택지 · 지난 칩 그대로', JSON.stringify(before) === JSON.stringify(after), `${before} → ${after}`);
+    ok('다시 열기: 지난 답 본문엔 <choices> 없음', await p.evaluate(() => T.ST.chat.slice(0, -1).every(m => m.is_user || !/<choices>/.test(m.mes) && (m.swipes ?? []).every(s => !/<choices>/.test(s)))));
+    // ⑥ 칩 누르면 그때 선택지 전체 (읽기 전용)
+    await p.click('.mbc-panel.done .mbc-pick >> nth=2');
+    ok('칩: 그때 선택지 4개 펼침 · 고른 것 ✔', await p.evaluate(() => { const r = document.querySelectorAll('.mbc-past-row'); return r.length === 4 && document.querySelectorAll('.mbc-past-row.mine').length === 1; }));
+    // ⑦ 분기: 8번째 답(mesid 8)에서 「여기서 다른 선택」
+    const at = await p.evaluate(() => { const ch = T.ST.chat; for (let i = 8; i < ch.length; i++) if (!ch[i].is_user && ch[i + 1]?.extra?.mbc) return i; return -1; });
+    const want = await p.evaluate((at) => T.ST.chat[at].extra.mbcBlock.match(/T\d+-[abcd]/g).join(','), at);
+    await p.evaluate((at) => { document.querySelectorAll('.mbc-past').forEach(x => x.remove()); }, at);
+    await p.click(`.mes[mesid="${at}"] .mbc-pick`); await p.click(`.mes[mesid="${at}"] [data-mbc-act="branch"]`); await p.waitForTimeout(300);
+    const br = await p.evaluate(() => ({ n: T.ST.chat.length, opts: [...document.querySelectorAll('.mbc-panel.live .mbc-label')].map(x => x.textContent.match(/T\d+-[abcd]/)?.[0]).join(','), chips: document.querySelectorAll('.mbc-panel.done').length }));
+    ok('분기: 그 답의 선택지가 다시 고를 수 있게 뜸', br.n === at + 1 && br.opts === want, `${JSON.stringify(br)} want ${want}`);
+    // 분기에서 고르고 보내기 → 프롬프트 깨끗
+    await pick(p, 1); await p.evaluate((t) => T.send(null, 99), 0);
+    ok('분기 뒤 보낸 프롬프트: 선택지 블록 0', blocks((await last(p)).text) === 0);
+    console.log(`  page errors: ${p.errs.length ? p.errs.join(' | ') : '없음'}`); ok('페이지 오류 없음', p.errs.length === 0);
+    await p.close();
+}
+
+// ⑧ 삭제 · 스와이프
+{
+    console.log('▶ 삭제 · 스와이프 (라이트 있음)');
+    const p = await page('lite=1');
+    for (let t = 1; t <= 5; t++) { await pick(p, t % 4); await p.evaluate((t) => T.send(null, t), t); }
+    const at = 6; // T3 답 (0:T0 1:u 2:T1 3:u 4:T2 5:u 6:T3)
+    const want = await p.evaluate((at) => T.ST.chat[at].extra.mbcBlock.match(/T\d+-[abcd]/g).join(','), at);
+    await p.evaluate((at) => T.del(at + 1), at);
+    const got = await p.evaluate(() => [...document.querySelectorAll('.mbc-panel.live .mbc-label')].map(x => x.textContent.match(/T\d+-[abcd]/)?.[0]).join(','));
+    ok('삭제: 그 뒤를 지우면 그 답 선택지가 다시 삶', got === want, `${got} want ${want}`);
+    // 새 스와이프 → 옛 스와이프로
+    await p.evaluate(() => T.swipeNew(77));
+    const s1 = await p.evaluate(() => [...document.querySelectorAll('.mbc-panel.live .mbc-label')].map(x => x.textContent.match(/[TS]\d+-[abcd]/)?.[0]).join(','));
+    ok('스와이프: 새 스와이프 선택지', /^S77-a/.test(s1), s1);
+    await p.evaluate(() => T.swipeTo(0));
+    const s0 = await p.evaluate(() => [...document.querySelectorAll('.mbc-panel.live .mbc-label')].map(x => x.textContent.match(/[TS]\d+-[abcd]/)?.[0]).join(','));
+    ok('스와이프: 옛 스와이프로 넘기면 그 선택지', s0 === want, `${s0} want ${want}`);
+    // 옛 스와이프에서 고르고 보내기 → 모든 스와이프에서 블록이 빠지고 스와이프마다 보관
+    await pick(p, 0); await p.evaluate(() => T.send(null, 8));
+    const tk = await p.evaluate((at) => { const m = T.ST.chat[at]; return { mes: /<choices>/.test(m.mes), sw: m.swipes.some(s => /<choices>/.test(s)), keep: m.swipe_info.map(x => !!x.extra?.mbcBlock) }; }, at);
+    ok('보낸 뒤: 모든 스와이프에서 빠지고 스와이프마다 보관', !tk.mes && !tk.sw && tk.keep.every(Boolean), JSON.stringify(tk));
+    // 내 메시지를 지우고 스와이프 1로 → 그 스와이프 선택지
+    await p.evaluate((at) => T.del(at + 1), at); await p.evaluate(() => T.swipeTo(1));
+    const s1b = await p.evaluate(() => [...document.querySelectorAll('.mbc-panel.live .mbc-label')].map(x => x.textContent.match(/[TS]\d+-[abcd]/)?.[0]).join(','));
+    ok('보관된 스와이프로 넘겨도 그 선택지', /^S77-a/.test(s1b), s1b);
+    // 🔄 다시 받기 (추가 지시 · 번역 받기)
+    await p.evaluate(() => { const m = T.ST.chat[T.ST.chat.length - 1]; m.extra.display_text = m.mes; });
+    await p.click('.mbc-panel.live [data-mbc-act="reroll"]'); await p.fill('.mbc-rr-in', '더 과감하게'); await p.click('.mbc-panel.live [data-mbc-act="rerollGo"]'); await p.waitForTimeout(400);
+    const rr = await p.evaluate(() => ({ shown: [...document.querySelectorAll('.mbc-panel.live .mbc-label')].map(x => x.childNodes[0].textContent).join(','), q: T.ST.quiet }));
+    ok('다시 받기: 새 선택지(번역) · 추가 지시 전달 · 바로 전 선택지만 피하기', /문을 걷어찬다/.test(rr.shown) && /더 과감하게/.test(rr.q) && /S77-a/.test(rr.q) && !/T\d+-/.test(rr.q), rr.shown);
+    const inp = await pick(p, 0);
+    ok('다시 받기 뒤 고르면 원문(영어)이 입력창에', inp === 'Kick the door open', inp);
+    ok('페이지 오류 없음', p.errs.length === 0, p.errs.join(' | '));
+    if (process.env.SHOTS) {
+        await p.evaluate(() => T.swipeTo(0)); await p.click('.mbc-panel.live .mbc-opt[data-mbc-n="2"]');
+        await p.evaluate(() => { const c = document.getElementById('chat'); c.scrollTop = c.scrollHeight; });
+        await p.screenshot({ path: `${process.env.SHOTS}/pc.png` });
+        await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(200);
+        await p.evaluate(() => { const c = document.getElementById('chat'); c.scrollTop = c.scrollHeight; });
+        await p.screenshot({ path: `${process.env.SHOTS}/mobile.png` });
+    }
+    await p.close();
+}
+// ⑨ 휴대폰 폭에서도 고르기
+{
+    console.log('▶ 휴대폰 폭');
+    const p = await page('lite=0', 390);
+    const v = await pick(p, 1);
+    ok('휴대폰: 고르기', /T0-b/.test(v), v);
+    const w = await p.evaluate(() => document.querySelector('.mbc-panel.live').scrollWidth <= document.querySelector('.mes_text').clientWidth + 1);
+    ok('휴대폰: 옆으로 넘치지 않음', w);
+    await p.close();
+}
+console.log(`\n결과: 통과 ${pass} · 실패 ${fail}`);
+await browser.close(); srv.close();
+process.exit(fail ? 1 : 0);
