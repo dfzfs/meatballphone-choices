@@ -30,7 +30,7 @@ function detailHTML(i, it, n) {
     return `<div class="mbc-detail">
         ${k ? row(k.icon, esc(k.name), esc(k.desc)) : ''}
         ${r.id !== 'none' ? row(r.icon, esc(r.name), esc(r.desc)) : ''}
-        ${cost ? row('🧾', esc(cost.text), cost.ok ? '미트볼 라이트 예상' : '돈이 모자라요') : ''}
+        ${cost ? row('🧾', esc(cost.text), cost.ok ? '미트볼폰 예상' : '돈이 모자라요') : ''}
         ${ch ? row('🎲', `${ch.dcName} ${ch.dc} · 성공 ${ch.pct}%`, `d20 ${ch.parts.map(([a, v]) => `<span class="mbc-part ${v >= 0 ? 'good' : 'bad'}">${esc(a)} ${v >= 0 ? '+' : '−'}${Math.abs(v)}</span>`).join('') || '<span class="mbc-part">보정 없음</span>'}`) : ''}
         <div class="mbc-d-go"><span class="mbc-dice" hidden></span><button class="mbc-go" data-mbc-act="go">이걸로 <span aria-hidden="true">›</span></button></div>
     </div>`;
@@ -130,7 +130,7 @@ export async function choose(i, n) {
     const check = ch ? rollCheck(ch, `${seedOf(i, n)}:${userCount()}`) : null;
     if (check && panel) await rollAnim(panel, check);
     const label = set.input === 'shown' ? it.label : (it.orig ?? it.label);
-    // 고른 기록 (mbc) — 미트볼 라이트 분류 모델이 읽는 약속. 필드는 README 표 참고
+    // 고른 기록 (mbc) — 미트볼폰 분류 모델이 읽는 약속. 필드는 README 표 참고
     const outcome = check ? (check.crit ? 'crit' : check.fumble ? 'fumble' : check.ok ? 'success' : 'fail') : null;
     const p = { v: 1, n, kind: it.kind, risk: it.risk, label, shown: it.label, check, outcome, trap: it.risk === 'trap', price: it.risk === 'price' };
     meta().pending = p; saveMeta();
@@ -170,7 +170,7 @@ export async function branchHere(i) {
     const btn = document.querySelector(`#chat .mes[mesid="${i}"] .mes_create_branch`);
     if (btn) { btn.click(); return; }
     try { await (c.executeSlashCommandsWithOptions ?? c.executeSlashCommands)?.(`/branch-create ${i}`); }
-    catch (e) { toastr.error('분기를 만들지 못했어요. 메시지 ⋯ › 분기 만들기를 써 주세요.', '미트볼 선택지'); }
+    catch (e) { toastr.error('분기를 만들지 못했어요. 메시지 ⋯ › 분기 만들기를 써 주세요.', '미트볼폰 선택지'); }
 }
 
 // ───── 🔄 선택지만 다시 받기 ─────
@@ -183,7 +183,7 @@ const swap = (text, block) => /<choices>/i.test(text ?? '') ? text.replace(/<cho
 export async function reroll(i, extra) {
     const c = ctx(), m = c.chat?.[i];
     if (!m || ui.rerolling) return;
-    if (isGenerating()) { toastr.info('답을 받는 중이에요. 끝난 뒤에 다시 받아 주세요.', '미트볼 선택지'); return; }
+    if (isGenerating()) { toastr.info('답을 받는 중이에요. 끝난 뒤에 다시 받아 주세요.', '미트볼폰 선택지'); return; }
     const items = choicesOf(i) ?? [];
     const gloss = !!(m.extra?.display_text || m.extra?.mbcShown);
     ui.rerolling = true;
@@ -203,7 +203,7 @@ export async function reroll(i, extra) {
         requestSave();
         if (typeof c.updateMessageBlock === 'function') c.updateMessageBlock(i, m);
         ui.sel = null; ui.reroll = false; ui.rerollText = '';
-    } catch (e) { toastr.error(String(e?.message ?? e), '미트볼 선택지'); }
+    } catch (e) { toastr.error(String(e?.message ?? e), '미트볼폰 선택지'); }
     finally { ui.rerolling = false; }
 }
 
@@ -214,8 +214,8 @@ export async function helpSheet() {
     const html = `<div class="mbc-sheet">
         <div class="mbc-sec">성향 — 어떤 마음으로 하는 행동인지</div><div class="mbc-card">${kindsOn().map(k => row(k.icon, esc(k.name), esc(k.desc))).join('')}</div>
         <div class="mbc-sec">위험</div><div class="mbc-card">${risksOn().map(r => row(r.icon || '·', esc(r.name), esc(r.desc))).join('')}</div>
-        <div class="mbc-sec">주사위</div><div class="mbc-card">${row('🎲', 'd20 + 보정 ≥ 난이도면 성공', '20은 늘 성공(대성공), 1은 늘 실패(대실패). 고르는 순간 굴려요.')}${row('🧮', '보정', lite() ? '미트볼 라이트의 능력치 · 욕구 위험 · 상태 딱지 · 장비 + 오늘 운세(🍀 +2 · ⚠ −2, 운에 맡기기는 두 배)' : '미트볼 라이트를 켜면 능력치 · 상태 · 운세가 들어가요. 지금은 보정 없음')}</div>
-        ${lite() ? `<div class="mbc-sec">오늘 운세 · 미트볼 라이트</div><div class="mbc-card">${row('🍀', ll?.rolled ? esc(ll.text) : '아직 안 굴림', ll?.rolled ? '운세와 맞는 선택지 🍀 · 조심할 행동 ⚠' : '라이트 › 주사위에서 「오늘 운세 굴리기」를 하면 선택지에 🍀 · ⚠가 붙어요')}</div>` : ''}
+        <div class="mbc-sec">주사위</div><div class="mbc-card">${row('🎲', 'd20 + 보정 ≥ 난이도면 성공', '20은 늘 성공(대성공), 1은 늘 실패(대실패). 고르는 순간 굴려요.')}${row('🧮', '보정', lite() ? '미트볼폰의 능력치 · 욕구 위험 · 상태 딱지 · 장비 + 오늘 운세(🍀 +2 · ⚠ −2, 운에 맡기기는 두 배)' : '미트볼폰을 켜면 능력치 · 상태 · 운세가 들어가요. 지금은 보정 없음')}</div>
+        ${lite() ? `<div class="mbc-sec">오늘 운세 · 미트볼폰</div><div class="mbc-card">${row('🍀', ll?.rolled ? esc(ll.text) : '아직 안 굴림', ll?.rolled ? '운세와 맞는 선택지 🍀 · 조심할 행동 ⚠' : '라이트 › 주사위에서 「오늘 운세 굴리기」를 하면 선택지에 🍀 · ⚠가 붙어요')}</div>` : ''}
         <div class="mbc-sec">탭</div><div class="mbc-card">${row('🎯', '선택지', '매 턴 답과 함께 와요')}${guideOn().map(k => row(SECTIONS[k].icon, esc(SECTIONS[k].name), esc(SECTIONS[k].desc) + ' · 처음 누를 때 AI 1회')).join('')}</div>
         <div class="mbc-sec">지난 선택지</div><div class="mbc-card">${row('✔', '고른 것만 칩으로 남아요', '칩을 누르면 그때 선택지 전체를 볼 수 있고, 「여기서 다른 선택」으로 그 답에서 분기해 다시 고를 수 있어요. 지난 선택지는 AI에게 가지 않아요.')}</div>
     </div>`;
