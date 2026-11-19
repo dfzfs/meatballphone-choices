@@ -6,7 +6,7 @@ import { panelFx, stamp, timerFx } from './fx.js';
 
 const SLOT_SEL = '.ss-slot, .custom-ss-slot, .ml-msg';
 const STAGE_KO = ['평온', '불안', '위험', '파국'];
-export const ui = { sel: null, group: null, rolling: false, open: false, reroll: false, rerollText: '', rerolling: false, hover: false }; // 지금 고른 칸 · 열어 둔 묶음
+export const ui = { sel: null, group: null, rolling: false, open: false, reroll: false, rerollText: '', rerolling: false, hover: false, hoverBlock: false }; // 지금 고른 칸 · 열어 둔 묶음
 
 // 위험 딱지 (보이는 모양: 그대로 · 숨김 · 안전으로 위장). 지난 선택지는 진짜를 보여 준다
 function riskView(id, reveal) {
@@ -420,8 +420,8 @@ export function placeSide() {
 }
 let sideT = 0;
 function wireSide(el) {
-    el.addEventListener('mouseenter', () => { clearTimeout(sideT); if (!ui.hover) { ui.hover = true; el.classList.add('open'); } });
-    el.addEventListener('mouseleave', () => { clearTimeout(sideT); sideT = setTimeout(() => { ui.hover = false; if (!sideOpen()) el.classList.remove('open'); }, 350); });
+    el.addEventListener('mouseenter', () => { clearTimeout(sideT); if (!ui.hover && !ui.hoverBlock) { ui.hover = true; el.classList.add('open'); } });
+    el.addEventListener('mouseleave', () => { clearTimeout(sideT); ui.hoverBlock = false; sideT = setTimeout(() => { ui.hover = false; if (!sideOpen()) el.classList.remove('open'); }, 350); });
     let raf = 0;
     const re = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { placeSide(); import('./editor.js').then(m => m.placeEditDock()); }); };
     document.getElementById('chat')?.addEventListener('scroll', re, { passive: true });
