@@ -15,7 +15,7 @@ async function page(q, w = 1000) {
     await p.goto(`http://localhost:${port}/tools/harness/page.html?${q}`);
     await p.waitForFunction(() => window.__ready);
     await p.evaluate(() => {
-        T.ST.reply = (n, type) => { const s = type === 'swipe' ? 'S' : 'T'; return `장면 ${n}.\n\n<choices>\n[rational|safe] ${s}${n}-a 출입증을 보여 준다\n[persona|none] ${s}${n}-b 서하를 안심시킨다\n[brave|gamble] ${s}${n}-c 문을 밀어 연다\n[need|price] ${s}${n}-d 컵라면부터 산다 (대가: 돈 −1,500)\n</choices>\n\n<meatball>\nloc: 연구동\n</meatball>`; };
+        T.ST.reply = (n, type) => { const s = type === 'swipe' ? 'S' : 'T'; return `장면 ${n}.\n\n<choices>\n[rational|safe] ${s}${n}-a 출입증을 보여 준다\n[persona|none] ${s}${n}-b 다은를 안심시킨다\n[brave|gamble] ${s}${n}-c 문을 밀어 연다\n[need|price] ${s}${n}-d 컵라면부터 산다 (대가: 돈 −1,500)\n</choices>\n\n<meatball>\nloc: 연구동\n</meatball>`; };
         T.ST.chat.push(T.aiMsg(T.ST.reply(0, 'normal')));
     });
     await p.evaluate(async () => { T.render(); await T.es.emit('APP_READY'); await T.es.emit('CHAT_CHANGED'); await T.wait(150); });
@@ -193,7 +193,7 @@ for (const [lite, mode, lm] of [['0', 'chat', ''], ['1', 'chat', ''], ['1', 'tex
     await p.click('.mbc-panel.live [data-mbc-act="tab"][data-g="facts"]'); await p.waitForTimeout(300);
     const g = await p.evaluate(() => ({ n: T.ST.quietN, ex: T.ST.chat[0].extra.mbcGuide, mes: T.ST.chat[0].mes, swi: T.ST.chat[0].swipe_info[0].extra.mbcGuide, rows: document.querySelectorAll('.mbc-panel.live .mbc-opt.g').length, choices: document.querySelectorAll('.mbc-panel.live .mbc-opt[data-mbc-i]').length }));
     ok('탭: 처음 누르면 AI 1회로 세 칸 · 그 자리에 숨은 사실 목록 (선택지 대신)', g.n === 1 && g.ex?.route?.length === 2 && g.ex?.facts?.length === 2 && g.ex?.spoil?.length === 2 && g.rows === 2 && g.choices === 0, JSON.stringify(g));
-    ok('탭: 본문엔 없고 extra(스와이프)에만', !/서하와 비밀|우산/.test(g.mes) && !!g.swi);
+    ok('탭: 본문엔 없고 extra(스와이프)에만', !/다은와 비밀|우산/.test(g.mes) && !!g.swi);
     ok('숨은 사실 요청: 조명 못 받은 작은 정보 · 예시 · 설정과 안 어긋나게', await p.evaluate(() => /not spotlighted/.test(T.ST.quiet) && /이어폰/.test(T.ST.quiet) && /never contradict/.test(T.ST.quiet)));
     const noPick = async (sec) => { await p.click(`.mbc-panel.live [data-mbc-act="tab"][data-g="${sec}"]`); await p.click('.mbc-panel.live .mbc-opt.g >> nth=0'); return p.evaluate(() => document.getElementById('send_textarea').value === '' && !document.querySelector('.mbc-panel.live .mbc-opt.g[data-mbc-act], .mbc-panel.live button.mbc-opt.g')); };
     ok('숨은 사실: 보여 주기만 (눌러도 입력 없음)', await noPick('facts'));
@@ -206,7 +206,7 @@ for (const [lite, mode, lm] of [['0', 'chat', ''], ['1', 'chat', ''], ['1', 'tex
     await p.click('.mbc-panel.live [data-mbc-act="tab"][data-g="choices"]');
     ok('선택지 탭으로 돌아가면 선택지', await p.evaluate(() => document.querySelectorAll('.mbc-panel.live .mbc-opt[data-mbc-i]').length === 4));
     await pick(p, 1); await p.evaluate(() => T.send(null, 1));
-    ok('다음 프롬프트에 탭 글 없음', !/서하와 비밀|우산을 두고|푸른 빛의 정체/.test((await last(p)).text));
+    ok('다음 프롬프트에 탭 글 없음', !/다은와 비밀|우산을 두고|푸른 빛의 정체/.test((await last(p)).text));
     ok('새 답이 오면 선택지 탭부터', await p.evaluate(() => document.querySelector('.mbc-panel.live .mbc-tab.on')?.dataset.g === 'choices'));
     // 옆 동그라미에서도 탭
     await p.setViewportSize({ width: 1280, height: 900 });
