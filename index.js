@@ -2,11 +2,12 @@
 // 저장: 선택지 블록은 그 AI 메시지(스와이프마다) extra · 고른 기록은 그다음 사용자 메시지 extra. 따로 쌓는 기록 없음.
 import { settings, ctx, meta, userCount, LOG, VERSION, save, esc, liteClear, setExtra, lite, requestSave, afterReply, genStarted, genEnded, isGenerating } from './src/core.js';
 import { onBeforeGen, setInject, buildPrompt, stripOld, tuck } from './src/prompt.js';
-import { decorate, lastAIIndex, ui, choose, helpSheet, reroll, branchHere, dropSide, placeSide } from './src/panel.js';
+import { decorate, lastAIIndex, ui, choose, helpSheet, reroll, branchHere, dropSide, placeSide, drawPhonePanel, inPhone } from './src/panel.js';
 import { fetchGuide, guideItems, gst } from './src/guide.js';
 import { openEditor, setOnChange, placeEditDock } from './src/editor.js';
 
 let busy = false;
+let phoneHost = null, phoneApi = null; // 📱 폰 🎯 앱 안 선택지 칸
 function decorateAll(recentOnly = false, force = false) {
     if (busy) return;
     busy = true;
@@ -16,6 +17,7 @@ function decorateAll(recentOnly = false, force = false) {
         ui.side = false;
         (recentOnly ? els.slice(-4) : els).forEach(el => { try { decorate(el, lastAI, force); } catch (e) { console.warn(LOG, e); } });
         if (!ui.side) dropSide(); // 옆 동그라미를 안 쓰면
+        if (phoneHost && !drawPhonePanel(phoneHost)) phoneHost = null; // 📱 폰 🎯 앱이 열려 있으면 거기도
     } finally { busy = false; }
 }
 
@@ -73,9 +75,10 @@ document.addEventListener('click', (e) => {
     if (act === 'rerollGo') { ui.rerollText = panel.querySelector('.mbc-rr-in')?.value ?? ui.rerollText; const tab = ui.tab ?? 'choices'; const p = tab === 'choices' ? reroll(i, ui.rerollText.trim()) : fetchGuide(i, tab, ui.rerollText.trim()).then(() => { ui.reroll = false; ui.rerollText = ''; }); decorateAll(true); p.then(() => decorateAll(true, true)); return; }
     if (act === 'past') { ui.past.has(i) ? ui.past.delete(i) : ui.past.add(i); decorateAll(); return; }
     if (act === 'branch') { branchHere(i); return; }
-    if (act === 'go') { if (ui.sel) choose(ui.sel.i, ui.sel.n).then(() => decorateAll(true)); return; }
+    const picked = () => { decorateAll(true); if (panel.classList.contains('inphone') && window.innerWidth < 900) phoneApi?.close(); }; // 휴대폰: 고르면 폰을 닫아 입력창이 보이게
+    if (act === 'go') { if (ui.sel) choose(ui.sel.i, ui.sel.n).then(picked); return; }
     const n = Number(t.dataset.mbcN);
-    if (!settings().confirm) { choose(i, n).then(() => decorateAll(true)); return; }
+    if (!settings().confirm) { choose(i, n).then(picked); return; }
     ui.sel = ui.sel?.i === i && ui.sel?.n === n ? null : { i, n };
     decorateAll(true);
 }, true);
@@ -168,15 +171,17 @@ function phoneApp() {
         el.innerHTML = `<div class="mbc-app"><p>AI 답 끝의 선택지를 고르기 쉬운 목록으로 바꿔요. v${esc(VERSION)}</p>`
             + `<label>켜기</label>${seg('enabled', [[true, '켜짐'], [false, '꺼짐']])}`
             + `<label>받는 때</label>${seg('gen', [['ask', '눌러서 (본편 토큰 0)'], ['auto', '매 답']])}`
-            + `<label>보기</label>${seg('view', [['list', '답 밑 목록'], ['side', '옆 동그라미']])}`
+            + `<label>보기</label>${seg('view', [['phone', '📱 폰 안에서만'], ['list', '답 밑 목록'], ['side', '옆 동그라미']])}`
             + `<button class="mbc-app-all">⚙️ 모든 설정</button></div>`;
+        if (inPhone()) { el.insertAdjacentHTML('afterbegin', '<div class="mbc-app-live"></div>'); phoneHost = el.querySelector('.mbc-app-live'); phoneApi = phone; drawPhonePanel(phoneHost); }
+        else { phoneHost = null; el.querySelector('.mbc-app p')?.insertAdjacentHTML('afterend', '<p class="mbc-app-tip">「📱 폰 안에서만」을 고르면 채팅에는 아무것도 안 뜨고, 여기서 받고 골라요.</p>'); }
         el.querySelectorAll('.mbc-app-seg button').forEach(b => b.addEventListener('click', () => {
             const k = b.parentElement.dataset.k, raw = b.dataset.v; settings()[k] = raw === 'true' ? true : raw === 'false' ? false : raw; save();
             decorateAll(false, true); draw(el, phone);
         }));
         el.querySelector('.mbc-app-all').addEventListener('click', () => { phone.close(); openEditor(); });
     };
-    (globalThis.MeatballPhoneApps ??= []).push({ id: 'choices', name: '선택지', icon: '🎯', color: '#ff7a59', version: VERSION, desc: '선택지 켜기 · 받는 때 · 보기', render: draw });
+    (globalThis.MeatballPhoneApps ??= []).push({ id: 'choices', name: '선택지', icon: '🎯', color: '#ff7a59', version: VERSION, desc: '선택지 받기 · 고르기 · 설정', render: draw });
 }
 const { eventSource: _es, event_types: _et } = SillyTavern.getContext();
 _es.on(_et.APP_READY, init);

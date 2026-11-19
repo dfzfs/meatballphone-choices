@@ -199,3 +199,7 @@
 .mbc-app-seg button,.mbc-app-all{border:1px solid rgba(127,127,127,.35);background:rgba(127,127,127,.08);color:inherit;border-radius:12px;padding:8px 12px;font:inherit;cursor:pointer;flex:1 1 auto}
 .mbc-app-seg button.on{background:#ff7a59;border-color:#ff7a59;color:#fff}
 .mbc-app-all{margin-top:10px}
+/* 📱 폰 안에서만: 폰 🎯 앱 안 선택지 칸 */
+.mbc-app-live{margin:0 0 14px}
+.mbc-app-live .mbc-panel.inphone{margin:0;max-width:none}
+.mbc-app-tip{font-size:.85em!important;opacity:.7!important}
