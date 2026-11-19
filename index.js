@@ -172,6 +172,7 @@ function phoneApp() {
             + `<label>켜기</label>${seg('enabled', [[true, '켜짐'], [false, '꺼짐']])}`
             + `<label>받는 때</label>${seg('gen', [['ask', '눌러서 (본편 토큰 0)'], ['auto', '매 답']])}`
             + `<label>보기</label>${seg('view', [['phone', '📱 폰 안에서만'], ['list', '답 밑 목록'], ['side', '옆 동그라미']])}`
+            + `${settings().view === 'phone' ? `<label>지난 선택 칩</label>${seg('pastChip', [[true, '채팅에도 남김'], [false, '폰 안에만']])}` : ''}`
             + `<button class="mbc-app-all">⚙️ 모든 설정</button></div>`;
         if (inPhone()) { el.insertAdjacentHTML('afterbegin', '<div class="mbc-app-live"></div>'); phoneHost = el.querySelector('.mbc-app-live'); phoneApi = phone; drawPhonePanel(phoneHost); }
         else { phoneHost = null; el.querySelector('.mbc-app p')?.insertAdjacentHTML('afterend', '<p class="mbc-app-tip">「📱 폰 안에서만」을 고르면 채팅에는 아무것도 안 뜨고, 여기서 받고 골라요.</p>'); }

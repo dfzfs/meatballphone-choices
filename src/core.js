@@ -2,7 +2,7 @@
 import { KINDS, RISKS, DCS } from './data.js';
 
 export const MODULE = 'mbChoices';
-export const VERSION = '0.9.0';
+export const VERSION = '0.9.1';
 export const LOG = '[미트볼폰 선택지]';
 export const ctx = () => SillyTavern.getContext();
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -19,6 +19,7 @@ export const DEFAULTS = Object.freeze({
     gen: 'ask',          // ask = 눌러야 받음 (본편에 선택지 지시를 안 넣음 · 누를 때 AI 1회) · auto = 매 답마다 본편이 같이 씀
     sideX: 'auto',       // 옆 동그라미 가로 자리: auto · right · left
     sideY: 'msg',        // 세로 자리: msg(마지막 답 옆) · top · middle · bottom
+    pastChip: true,      // 📱 폰 안에서만일 때도 채팅에 지난 선택 칩을 남길지
     view: 'list',        // list = 답 밑 목록 · side = 채팅 옆 「?」 동그라미 → 올리면 부채꼴 (좁은 화면은 목록)
     kinds: Object.fromEntries(KINDS.map(k => [k.id, true])),
     risks: Object.fromEntries(RISKS.map(r => [r.id, !r.off])), // 함정은 기본 끔

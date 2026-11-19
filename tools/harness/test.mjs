@@ -301,6 +301,12 @@ for (const lite of ['0', '1']) {
     await p.click('#phone-app .mbc-opt[data-mbc-n="1"]'); await p.click('#phone-app [data-mbc-act="go"]');
     await p.waitForFunction(() => document.getElementById('send_textarea').value.length > 0, null, { timeout: 4000 });
     ok('폰 안에서 고르면 입력창에 들어감', /노크|Knock/.test(await p.evaluate(() => document.getElementById('send_textarea').value)));
+    await p.evaluate(() => T.send(null, 2)); await p.waitForTimeout(400);
+    ok('지난 선택 칩은 기본으로 채팅에 남음 · 지금 선택지는 폰 안에만', await p.evaluate(() => !!document.querySelector('#chat .mbc-panel.done') && !document.querySelector('#chat .mbc-panel.live')));
+    await p.evaluate(async () => { const { settings } = await import('../../src/core.js'); settings().pastChip = false; settings()._rev = 91; await T.es.emit('MESSAGE_UPDATED'); await T.wait(150); });
+    ok('「폰 안에만」이면 칩도 없음', await p.evaluate(() => !document.querySelector('#chat .mbc-panel')));
+    await p.evaluate(() => { const app = globalThis.MeatballPhoneApps.find(a => a.id === 'choices'); const el = document.getElementById('phone-app'); el.innerHTML = ''; app.render(el, { close() {}, redraw() {}, toast() {} }); });
+    ok('폰 앱 아래에 「지난 선택」', await p.evaluate(() => /노크|Knock/.test(document.querySelector('#phone-app .mbc-ph-pasts')?.textContent ?? '')));
     // 폰이 없으면 목록으로
     await p.evaluate(async () => { delete window.MeatballLite; delete globalThis.MeatballPhone; const { liteClear } = await import('../../src/core.js'); liteClear(); await T.es.emit('MESSAGE_UPDATED'); await T.wait(150); });
     ok('폰이 없으면 답 밑 목록으로', await p.evaluate(() => !!document.querySelector('#chat .mbc-panel.live')));

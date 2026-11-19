@@ -99,6 +99,14 @@ const pickedFor = (i) => { const u = (ctx().chat ?? [])[i + 1]; return u?.is_use
 
 // 📱 「폰 안에서만」: 미트볼폰이 켜져 있으면 채팅에는 아무것도 안 붙이고 폰 🎯 앱 안에만 (폰이 없으면 목록)
 export const inPhone = () => settings().view === 'phone' && !!lite();
+// 📜 지난 선택 (폰 앱 아래쪽) — 최근 것부터 n개
+export function pastPicks(n = 8) {
+    const chat = ctx().chat ?? [], out = [];
+    for (let k = chat.length - 1; k > 0 && out.length < n; k--) { const m = chat[k], p = m?.is_user ? m.extra?.mbc : null; if (p) out.push({ i: k - 1, p }); }
+    return out.map(({ i, p }) => { const k = kindOf(p.kind); return `<div class="mbc-ph-past"><span class="nm">${k?.icon ?? '✔'}</span><span class="tx">${esc(p.shown ?? p.label)}</span>`
+        + `${p.check ? `<span class="mbc-res ${p.check.ok ? 'good' : 'bad'}">${resText(p.check)}</span>` : ''}${p.risk === 'trap' ? '<span class="mbc-res bad">🪤</span>' : p.risk === 'price' ? '<span class="mbc-res">💸</span>' : ''}`
+        + `<small>#${i}</small></div>`; }).join('');
+}
 // 폰 앱 칸에 지금 고를 수 있는 선택지 그리기
 export function drawPhonePanel(host) {
     if (!host?.isConnected) return false;
@@ -111,6 +119,8 @@ export function drawPhonePanel(host) {
         : !live ? '<div class="mbc-gempty"><span>AI 답이 오면 여기서 골라요</span></div>'
         : ui.gen ? '<div class="mbc-gempty"><span>답을 받는 중…</span></div>'
         : liveHTML(i, choicesOf(i) ?? []);
+    const past = pastPicks();
+    if (past) panel.insertAdjacentHTML('beforeend', `<div class="mbc-ph-pasts"><b>지난 선택</b>${past}</div>`);
     return true;
 }
 
@@ -124,7 +134,7 @@ export function decorate(mesEl, lastAI, force = false) {
     let panel = mesEl.querySelector('.mbc-panel');
     if (!items && !(live && set.enabled)) { panel?.remove(); return; }
     if (items) stripRaw(textEl, items);
-    if (inPhone()) { panel?.remove(); return; } // 📱 폰 안에서만: 채팅에는 목록 · 칩 · 동그라미 모두 없음
+    if (inPhone() && (live || !set.pastChip)) { panel?.remove(); return; } // 📱 폰 안에서만: 지금 선택지는 폰 안에만 · 지난 선택 칩은 설정대로
     if (live && ui.gen) { panel?.remove(); return; } // 받는 중엔 그리지 않음
     items ??= [];
     if (live && set.view === 'side' && window.innerWidth >= 700 && (items.length || set.gen !== 'auto')) { panel?.remove(); renderSide(i, items); return; }
