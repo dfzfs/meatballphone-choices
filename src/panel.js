@@ -71,7 +71,7 @@ function optHTML(i, it, n, live, picked, cls = '') {
         if (it.risk === 'trap') res += '<span class="mbc-res bad">🪤 함정이었다</span>';
         if (it.risk === 'cursed') res += '<span class="mbc-res curse">☠ 저주</span>';
     }
-    return `<button class="mbc-opt ${cls}${mine ? ' mine' : ''}${sel ? ' sel' : ''}" data-mbc-i="${i}" data-mbc-n="${n}" data-kind="${esc(it.kind)}" data-risk="${esc(it.risk)}" data-group="${esc(k.group)}" ${live ? '' : 'disabled'}>
+    return `<button class="mbc-opt ${cls}${mine ? ' mine' : ''}${sel ? ' sel' : ''}"${cls === 'ring' ? ` title="${esc(it.label)}"` : ''} data-mbc-i="${i}" data-mbc-n="${n}" data-kind="${esc(it.kind)}" data-risk="${esc(it.risk)}" data-group="${esc(k.group)}" ${live ? '' : 'disabled'}>
         <span class="mbc-kind g-${esc(k.group)}"><span class="ic">${k.icon}</span><span class="nm">${esc(k.name)}</span>${luckMark}</span>
         ${cls === 'ring' ? `<span class="mbc-ring-txt"><span class="mbc-ring-k">${esc(k.name)}${r ? ` · ${r.icon} ${esc(r.name)}` : ''}${ch ? ` · ${ch.pct}%` : ''}</span>` : ''}<span class="mbc-label">${esc(it.label)}${cost ? `<span class="mbc-cost${cost.ok ? '' : ' poor'}">${esc(cost.text)}</span>` : ''}</span>
         ${cls === 'ring' ? '</span>' : ''}<span class="mbc-tags">${badge(r)}${ch ? `<span class="mbc-odds" title="성공 확률">${ch.pct}%</span>` : ''}${res}</span>
@@ -389,19 +389,30 @@ export function placeSide() {
     else x = c.right - 40;
     const y = Math.max(c.top + 48, Math.min((mes ? mes.bottom : c.bottom) - 48, c.bottom - 48));
     el.style.left = `${Math.round(x)}px`; el.style.top = `${Math.round(y)}px`; el.dataset.dir = dir; el.dataset.cardUp = window.innerHeight - y < 330 ? '1' : '';
+    // 테마 배경이 반투명이면 선택지가 본문과 겹쳐 안 읽힘 → 불투명하게
+    if (settings().look.theme === 'auto' && !el.dataset.solid) {
+        const v = getComputedStyle(document.documentElement).getPropertyValue('--SmartThemeBlurTintColor').trim();
+        const m = v.match(/rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/);
+        if (m) el.style.setProperty('--bg0', `rgb(${m[1]}, ${m[2]}, ${m[3]})`);
+        el.dataset.solid = '1';
+    }
+    // 실제 높이를 재서 부채꼴(활 모양)로 위에서 아래로 쌓는다 → 절대 안 겹침 · 채팅 안에서만
     const opts = [...el.querySelectorAll('.mbc-fan > .mbc-opt')];
     const n = opts.length; if (!n) return;
-    const R = 150 + Math.max(0, n - 4) * 16;
-    const spread = Math.min(160, 40 + n * 22) * Math.PI / 180; // 부채꼴 폭
-    let center = Math.PI; // 왼쪽으로 펼침
-    const below = c.bottom - y, above = y - c.top;
-    if (below < R * 0.9) center += Math.min(0.75, (R * 0.9 - below) / R);
-    if (above < R * 0.9) center -= Math.min(0.75, (R * 0.9 - above) / R);
-    if (dir === 'right') center = Math.PI - center + Math.PI; // 거울
+    const gap = 6, hs = opts.map(o => o.offsetHeight || 40);
+    const H = hs.reduce((a, h) => a + h, 0) + gap * (n - 1);
+    const R = Math.max(130, H / 2 + 30);
+    const topB = c.top + 8 - y, botB = c.bottom - 8 - y;
+    let y0 = -H / 2;
+    if (y0 + H > botB) y0 = botB - H;
+    if (y0 < topB) y0 = topB;
+    const hubR = 30, sgn = dir === 'right' ? 1 : -1;
+    let acc = y0;
     opts.forEach((o, k) => {
-        const a = n === 1 ? center : center + spread / 2 - spread * k / (n - 1); // 첫 선택지가 위
-        o.style.setProperty('--tx', `${(Math.cos(a) * R).toFixed(1)}px`);
-        o.style.setProperty('--ty', `${(Math.sin(a) * R * 0.92).toFixed(1)}px`);
+        const cy = acc + hs[k] / 2; acc += hs[k] + gap;
+        const dx = Math.max(hubR + 10, Math.sqrt(Math.max(0, R * R - cy * cy)));
+        o.style.setProperty('--tx', `${(sgn * dx).toFixed(1)}px`);
+        o.style.setProperty('--ty', `${cy.toFixed(1)}px`);
     });
     el.style.setProperty('--R', `${R}px`);
 }
