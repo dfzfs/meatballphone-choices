@@ -1,6 +1,6 @@
 // 미트볼폰 선택지 — 답 끝의 선택지를 고르기 쉬운 목록으로. 미트볼폰 칩 위에 붙는다.
 // 저장: 선택지 블록은 그 AI 메시지(스와이프마다) extra · 고른 기록은 그다음 사용자 메시지 extra. 따로 쌓는 기록 없음.
-import { settings, ctx, meta, userCount, LOG, VERSION, save, esc, liteClear, setExtra, lite, requestSave, afterReply, genStarted, genEnded, isGenerating } from './src/core.js';
+import { settings, ctx, meta, isOn, userCount, LOG, VERSION, save, esc, liteClear, setExtra, lite, requestSave, afterReply, genStarted, genEnded, isGenerating } from './src/core.js';
 import { onBeforeGen, setInject, buildPrompt, stripOld, tuck } from './src/prompt.js';
 import { decorate, lastAIIndex, ui, choose, helpSheet, reroll, branchHere, dropSide, placeSide, drawPhonePanel, inPhone } from './src/panel.js';
 import { fetchGuide, guideItems, gst } from './src/guide.js';
@@ -28,9 +28,14 @@ function tuckBefore(end) {
     return n;
 }
 
+// 끌 때(전체 · 이 채팅): 본편 지시를 지우고, 마지막 답 본문에 남은 선택지 블록까지 메시지 extra로 옮겨 글에 흔적이 안 남게
+function turnedOff() {
+    setInject(''); const md = meta(); if (md.pending) md.pending = null;
+    if (tuckBefore((ctx().chat ?? []).length) > 0) { requestSave(); const i = lastAIIndex(); if (i >= 0) ctx().updateMessageBlock?.(i, ctx().chat[i]); }
+}
 // 내가 보냄: 고른 기록을 이 메시지에 붙이고, 앞의 모든 답의 선택지를 정리
 function onSent(idx) {
-    if (!settings().enabled) return;
+    if (!isOn()) return;
     const chat = ctx().chat ?? [];
     const i = Number.isFinite(Number(idx)) ? Number(idx) : chat.length - 1;
     const m = chat[i], md = meta();
@@ -96,9 +101,12 @@ function renderSettings() {
     const el = document.createElement('div');
     el.className = 'mbc-settings';
     el.innerHTML = `<div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>미트볼폰 선택지</b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
-        <div class="inline-drawer-content"><label class="checkbox_label"><input type="checkbox" data-mbc-on ${settings().enabled ? 'checked' : ''}> 사용</label>
+        <div class="inline-drawer-content"><label class="checkbox_label"><input type="checkbox" data-mbc-on ${settings().enabled ? 'checked' : ''}> 사용</label><label class="checkbox_label"><input type="checkbox" data-mbc-chatoff> 이 채팅에서만 끄기</label>
         <div class="mbc-btns"><button class="menu_button" data-mbc-open>⚙ 선택지 설정</button><button class="menu_button" data-mbc-help>ⓘ 읽는 법</button></div></div></div>`;
-    el.querySelector('[data-mbc-on]').addEventListener('change', (e) => { settings().enabled = e.target.checked; ctx().saveSettingsDebounced(); if (!e.target.checked) setInject(''); decorateAll(false, true); });
+    const co = el.querySelector('[data-mbc-chatoff]'), syncCo = () => { co.checked = !!meta().off; };
+    co.addEventListener('change', (e) => { const md = meta(); if (e.target.checked) { md.off = true; turnedOff(); } else delete md.off; requestSave(); decorateAll(false, true); });
+    ctx().eventSource.on(ctx().event_types.CHAT_CHANGED, () => setTimeout(syncCo, 30)); syncCo();
+    el.querySelector('[data-mbc-on]').addEventListener('change', (e) => { settings().enabled = e.target.checked; ctx().saveSettingsDebounced(); if (!e.target.checked) turnedOff(); decorateAll(false, true); });
     el.querySelector('[data-mbc-open]').addEventListener('click', () => openEditor());
     el.querySelector('[data-mbc-help]').addEventListener('click', () => helpSheet());
     document.getElementById('extensions_settings2')?.appendChild(el);
@@ -139,19 +147,19 @@ function init() {
     on('MESSAGE_SENT', onSent);
     // 지난 선택지는 어떤 경로로도 AI에게 안 감: 본문에서 옮기기 + 보내는 글에서 한 번 더 빼기
     on('CHAT_COMPLETION_PROMPT_READY', (d) => {
-        if (!settings().enabled || !Array.isArray(d?.chat)) return;
+        if (!Array.isArray(d?.chat)) return; // 꺼져 있어도 지난 선택지 블록은 늘 뺌
         for (const m of d.chat) { if (typeof m.content === 'string') m.content = stripOld(m.content); else if (Array.isArray(m.content)) for (const p of m.content) if (p?.type === 'text') p.text = stripOld(p.text); }
     });
-    on('GENERATE_AFTER_COMBINE_PROMPTS', (d) => { if (settings().enabled && typeof d?.prompt === 'string') d.prompt = stripOld(d.prompt); });
+    on('GENERATE_AFTER_COMBINE_PROMPTS', (d) => { if (typeof d?.prompt === 'string') d.prompt = stripOld(d.prompt); });
     on('GENERATION_STARTED', (type, _o, dry) => { if (!dry && type !== 'quiet') { genStarted(); ui.gen = true; ui.sel = null; ui.reroll = false; ui.open = false; ui.tab = 'choices'; } });
     for (const ev of ['GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_RECEIVED', 'CHARACTER_MESSAGE_RENDERED']) on(ev, () => { ui.gen = false; genEnded(); });
     // 답이 끝나면 결과 지시는 지움 (다시 생성하면 GENERATION_AFTER_COMMANDS가 같은 지시를 다시 씀)
-    on('MESSAGE_RECEIVED', () => { if (settings().enabled) setInject(buildPrompt(userCount() + 1, null)); });
+    on('MESSAGE_RECEIVED', () => { if (isOn()) setInject(buildPrompt(userCount() + 1, null)); });
     for (const ev of ['MESSAGE_SWIPED', 'MESSAGE_DELETED']) on(ev, () => { ui.sel = null; });
     on('CHAT_CHANGED', () => {
         setInject(''); ui.sel = null; ui.reroll = false; ui.open = false; ui.tab = 'choices'; ui.past.clear(); ui.gen = false; liteClear();
         // 채팅을 열면: 마지막 답(아직 고를 수 있는 것)을 뺀 옛 답 정리
-        if (settings().enabled) { const last = lastAIIndex(); const chat = ctx().chat ?? []; const end = last >= 0 && !chat[last + 1] ? last : chat.length; if (isGenerating()) afterReply(() => tuckBefore(end) > 0); else if (tuckBefore(end)) requestSave(); }
+        if (isOn()) { const last = lastAIIndex(); const chat = ctx().chat ?? []; const end = last >= 0 && !chat[last + 1] ? last : chat.length; if (isGenerating()) afterReply(() => tuckBefore(end) > 0); else if (tuckBefore(end)) requestSave(); }
         setTimeout(() => { watch(); decorateAll(); }, 50);
     });
     for (const ev of ['CHARACTER_MESSAGE_RENDERED', 'USER_MESSAGE_RENDERED', 'MESSAGE_UPDATED', 'MESSAGE_SWIPED', 'MESSAGE_EDITED', 'GENERATION_ENDED', 'GENERATION_STOPPED']) on(ev, () => setTimeout(() => decorateAll(true), 30));
@@ -169,7 +177,8 @@ function phoneApp() {
     const seg = (k, opts) => `<div class="mbc-app-seg" data-k="${k}">${opts.map(([v, l]) => `<button class="${String(settings()[k]) === String(v) ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div>`;
     const draw = (el, phone) => {
         el.innerHTML = `<div class="mbc-app"><p>AI 답 끝의 선택지를 고르기 쉬운 목록으로 바꿔요. v${esc(VERSION)}</p>`
-            + `<label>켜기</label>${seg('enabled', [[true, '켜짐'], [false, '꺼짐']])}`
+            + `<label>켜기 <small>(모든 채팅)</small></label>${seg('enabled', [[true, '켜짐'], [false, '꺼짐']])}`
+            + `<label>이 채팅</label><div class="mbc-app-seg" data-k="chat">${[[true, '켜짐'], [false, '이 채팅만 끄기']].map(([v, l]) => `<button class="${!meta().off === v ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div>`
             + `<label>받는 때</label>${seg('gen', [['ask', '눌러서 (본편 토큰 0)'], ['auto', '매 답']])}`
             + `<label>보기</label>${seg('view', [['phone', '📱 폰 안에서만'], ['list', '답 밑 목록'], ['side', '옆 동그라미']])}`
             + `${settings().view === 'phone' ? `<label>지난 선택 칩</label>${seg('pastChip', [[true, '채팅에도 남김'], [false, '폰 안에만']])}` : ''}`
@@ -177,7 +186,9 @@ function phoneApp() {
         if (inPhone()) { el.insertAdjacentHTML('afterbegin', '<div class="mbc-app-live"></div>'); phoneHost = el.querySelector('.mbc-app-live'); phoneApi = phone; drawPhonePanel(phoneHost); }
         else { phoneHost = null; el.querySelector('.mbc-app p')?.insertAdjacentHTML('afterend', '<p class="mbc-app-tip">「📱 폰 안에서만」을 고르면 채팅에는 아무것도 안 뜨고, 여기서 받고 골라요.</p>'); }
         el.querySelectorAll('.mbc-app-seg button').forEach(b => b.addEventListener('click', () => {
-            const k = b.parentElement.dataset.k, raw = b.dataset.v; settings()[k] = raw === 'true' ? true : raw === 'false' ? false : raw; save();
+            const k = b.parentElement.dataset.k, raw = b.dataset.v, v = raw === 'true' ? true : raw === 'false' ? false : raw;
+            if (k === 'chat') { const md = meta(); if (v) delete md.off; else md.off = true; requestSave(); if (!v) turnedOff(); }
+            else { settings()[k] = v; save(); if (k === 'enabled' && !v) turnedOff(); }
             decorateAll(false, true); draw(el, phone);
         }));
         el.querySelector('.mbc-app-all').addEventListener('click', () => { phone.close(); openEditor(); });

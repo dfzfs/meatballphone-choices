@@ -313,6 +313,22 @@ for (const lite of ['0', '1']) {
     ok('페이지 오류 없음', p.errs.length === 0, p.errs.join(' | '));
     await p.close();
 }
+// ⑯ 🔌 이 채팅에서만 끄기: 지시 · 목록 없음 · 마지막 답 본문의 블록도 extra로 (글에 흔적 없음) · 다시 켜면 그대로
+{
+    console.log('▶ 이 채팅에서만 끄기');
+    const p = await page('lite=0&mode=chat&gen=auto');
+    ok('켜져 있으면 목록', await p.evaluate(() => !!document.querySelector('.mbc-panel.live .mbc-opt')));
+    await p.evaluate(async () => { const cb = document.querySelector('[data-mbc-chatoff]'); cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); await T.wait(200); });
+    const r = await p.evaluate(() => { const m = T.ST.chat.at(-1); return { panel: !!document.querySelector('.mbc-panel'), inText: /<choices>/.test(m.mes), kept: /<choices>/.test(m.extra?.mbcBlock ?? '') }; });
+    ok('끄면 목록 없음 · 마지막 답 글에서 선택지 블록 빠짐(extra에 보관)', !r.panel && !r.inText && r.kept, JSON.stringify(r));
+    await p.evaluate(() => T.send('간다', 9)); await p.waitForTimeout(300);
+    const s1 = await last(p);
+    ok('끈 채팅: 본편에 선택지 지시 없음', !/\[CHOICES\]/.test(s1.text));
+    await p.evaluate(async () => { const cb = document.querySelector('[data-mbc-chatoff]'); cb.checked = false; cb.dispatchEvent(new Event('change', { bubbles: true })); await T.wait(200); });
+    ok('다시 켜면 목록', await p.evaluate(() => !!document.querySelector('.mbc-panel.live')));
+    ok('페이지 오류 없음', p.errs.length === 0, p.errs.join(' | '));
+    await p.close();
+}
 console.log(`\n결과: 통과 ${pass} · 실패 ${fail}`);
 await browser.close(); srv.close();
 process.exit(fail ? 1 : 0);

@@ -2,7 +2,7 @@
 import { KINDS, RISKS, DCS } from './data.js';
 
 export const MODULE = 'mbChoices';
-export const VERSION = '0.9.1';
+export const VERSION = '0.9.2';
 export const LOG = '[미트볼폰 선택지]';
 export const ctx = () => SillyTavern.getContext();
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -63,9 +63,11 @@ export const risksOn = () => RISKS.filter(r => r.off ? settings().risks[r.id] ==
 export function meta() {
     const md = ctx().chatMetadata;
     if (!md) return { pending: null };
-    if (!md[MODULE] || Object.keys(md[MODULE]).some(k => k !== 'pending')) md[MODULE] = { pending: md[MODULE]?.pending ?? null }; // 옛 키(reset 등) 정리
+    if (!md[MODULE] || Object.keys(md[MODULE]).some(k => k !== 'pending' && k !== 'off')) md[MODULE] = { pending: md[MODULE]?.pending ?? null, ...(md[MODULE]?.off ? { off: true } : {}) }; // 옛 키(reset 등) 정리
     return md[MODULE];
 }
+// 켜져 있는지 = 전체 「사용」 + 이 채팅에서 끄지 않음
+export const isOn = () => settings().enabled && !meta().off;
 // ───── 저장: 한 군데서만 (윈도우에서 실리태번 저장과 겹치면 EPERM rename 실패) ─────
 // 1. 답을 받는 중엔 절대 저장 안 함  2. saveChat() 직접 X → saveChatDebounced()만
 // 3. 답이 끝나면 1초 뒤(실리태번 자체 저장이 끝난 뒤) 한 번만  4. 본문(mes) 고치기도 그때 한 번에
