@@ -1,6 +1,6 @@
 // 미트볼 선택지 — 답 끝의 선택지를 고르기 쉬운 목록으로. 미트볼 라이트 칩 위에 붙는다.
 // 저장: 선택지 블록은 그 AI 메시지(스와이프마다) extra · 고른 기록은 그다음 사용자 메시지 extra. 따로 쌓는 기록 없음.
-import { settings, ctx, meta, saveMeta, userCount, LOG, liteClear, setExtra, lite } from './src/core.js';
+import { settings, ctx, meta, userCount, LOG, liteClear, setExtra, lite, requestSave, afterReply, genStarted, genEnded, isGenerating } from './src/core.js';
 import { onBeforeGen, setInject, buildPrompt, stripOld, tuck } from './src/prompt.js';
 import { decorate, lastAIIndex, ui, choose, helpSheet, reroll, branchHere, dropSide, placeSide } from './src/panel.js';
 import { fetchGuide, guideItems, gst } from './src/guide.js';
@@ -18,7 +18,6 @@ function decorateAll(recentOnly = false, force = false) {
         if (!ui.side) dropSide(); // 옆 동그라미를 안 쓰면
     } finally { busy = false; }
 }
-const saveChat = () => { const c = ctx(); (c.saveChatDebounced ?? c.saveChat)?.call(c); };
 
 // 지난 선택지는 본문에서 빼서 그 메시지 extra로 (end 앞의 모든 AI 답 · 모든 스와이프)
 function tuckBefore(end) {
@@ -40,8 +39,10 @@ function onSent(idx) {
         setExtra(m, { mbc: p }); // 늘 남김 (칩 · 분기 · 라이트 분류 모델이 읽음)
         const L = lite(); if (typeof L?.pendingChoice === 'function') { try { L.pendingChoice({ ...p, mesId: i }); } catch (e) { console.warn(LOG, e); } } // 라이트에 받는 자리가 있으면 거기에도
     }
-    md.pending = null; saveMeta();
-    if (tuckBefore(i)) saveChat();
+    md.pending = null;
+    // 앞 답들의 선택지 블록 떼기는 이 답을 다 받은 뒤 1초에 (이번 프롬프트에선 stripOld가 빼 줌) · 저장도 그때 한 번
+    afterReply(() => tuckBefore(i) > 0);
+    requestSave();
     setInject(buildPrompt(userCount(), m.extra?.mbc ?? null));
 }
 
@@ -130,15 +131,15 @@ function init() {
         for (const m of d.chat) { if (typeof m.content === 'string') m.content = stripOld(m.content); else if (Array.isArray(m.content)) for (const p of m.content) if (p?.type === 'text') p.text = stripOld(p.text); }
     });
     on('GENERATE_AFTER_COMBINE_PROMPTS', (d) => { if (settings().enabled && typeof d?.prompt === 'string') d.prompt = stripOld(d.prompt); });
-    on('GENERATION_STARTED', (type, _o, dry) => { if (!dry && type !== 'quiet') { ui.gen = true; ui.sel = null; ui.reroll = false; ui.open = false; ui.tab = 'choices'; } });
-    for (const ev of ['GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_RECEIVED', 'CHARACTER_MESSAGE_RENDERED']) on(ev, () => { ui.gen = false; });
+    on('GENERATION_STARTED', (type, _o, dry) => { if (!dry && type !== 'quiet') { genStarted(); ui.gen = true; ui.sel = null; ui.reroll = false; ui.open = false; ui.tab = 'choices'; } });
+    for (const ev of ['GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_RECEIVED', 'CHARACTER_MESSAGE_RENDERED']) on(ev, () => { ui.gen = false; genEnded(); });
     // 답이 끝나면 결과 지시는 지움 (다시 생성하면 GENERATION_AFTER_COMMANDS가 같은 지시를 다시 씀)
     on('MESSAGE_RECEIVED', () => { if (settings().enabled) setInject(buildPrompt(userCount() + 1, null)); });
     for (const ev of ['MESSAGE_SWIPED', 'MESSAGE_DELETED']) on(ev, () => { ui.sel = null; });
     on('CHAT_CHANGED', () => {
         setInject(''); ui.sel = null; ui.reroll = false; ui.open = false; ui.tab = 'choices'; ui.past.clear(); ui.gen = false; liteClear();
         // 채팅을 열면: 마지막 답(아직 고를 수 있는 것)을 뺀 옛 답 정리
-        if (settings().enabled) { const last = lastAIIndex(); const chat = ctx().chat ?? []; const end = last >= 0 && !chat[last + 1] ? last : chat.length; if (tuckBefore(end)) saveChat(); }
+        if (settings().enabled) { const last = lastAIIndex(); const chat = ctx().chat ?? []; const end = last >= 0 && !chat[last + 1] ? last : chat.length; if (isGenerating()) afterReply(() => tuckBefore(end) > 0); else if (tuckBefore(end)) requestSave(); }
         setTimeout(() => { watch(); decorateAll(); }, 50);
     });
     for (const ev of ['CHARACTER_MESSAGE_RENDERED', 'USER_MESSAGE_RENDERED', 'MESSAGE_UPDATED', 'MESSAGE_SWIPED', 'MESSAGE_EDITED', 'GENERATION_ENDED', 'GENERATION_STOPPED']) on(ev, () => setTimeout(() => decorateAll(true), 30));

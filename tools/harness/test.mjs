@@ -84,6 +84,7 @@ for (const [lite, mode, lm] of [['0', 'chat', ''], ['1', 'chat', ''], ['1', 'tex
     const c = (await last(p)).text;
     ok('이어쓰기: 선택지 블록 0 · 안내 없음', blocks(c) === 0 && !/\[CHOICES\]/.test(c));
     // ⑤ 다시 열기
+    await p.waitForTimeout(1200);
     const before = await p.evaluate(() => [document.querySelectorAll('.mbc-panel.live .mbc-opt').length, document.querySelectorAll('.mbc-panel.done').length]);
     await p.evaluate(() => T.reopen());
     const after = await p.evaluate(() => [document.querySelectorAll('.mbc-panel.live .mbc-opt').length, document.querySelectorAll('.mbc-panel.done').length]);
@@ -93,6 +94,7 @@ for (const [lite, mode, lm] of [['0', 'chat', ''], ['1', 'chat', ''], ['1', 'tex
     await p.click('.mbc-panel.done .mbc-pick >> nth=2');
     ok('칩: 그때 선택지 4개 펼침 · 고른 것 ✔', await p.evaluate(() => { const r = document.querySelectorAll('.mbc-past-row'); return r.length === 4 && document.querySelectorAll('.mbc-past-row.mine').length === 1; }));
     // ⑦ 분기: 8번째 답(mesid 8)에서 「여기서 다른 선택」
+    await p.waitForTimeout(1200);
     const at = await p.evaluate(() => { const ch = T.ST.chat; for (let i = 8; i < ch.length; i++) if (!ch[i].is_user && ch[i + 1]?.extra?.mbc) return i; return -1; });
     const want = await p.evaluate((at) => T.ST.chat[at].extra.mbcBlock.match(/T\d+-[abcd]/g).join(','), at);
     await p.evaluate((at) => { document.querySelectorAll('.mbc-past').forEach(x => x.remove()); }, at);
@@ -112,6 +114,7 @@ for (const [lite, mode, lm] of [['0', 'chat', ''], ['1', 'chat', ''], ['1', 'tex
     console.log('▶ 삭제 · 스와이프 (라이트 있음)');
     const p = await page('lite=1');
     for (let t = 1; t <= 5; t++) { await pick(p, t % 4); await p.evaluate((t) => T.send(null, t), t); }
+    await p.waitForTimeout(1200);
     const at = 6; // T3 답 (0:T0 1:u 2:T1 3:u 4:T2 5:u 6:T3)
     const want = await p.evaluate((at) => T.ST.chat[at].extra.mbcBlock.match(/T\d+-[abcd]/g).join(','), at);
     await p.evaluate((at) => T.del(at + 1), at);
@@ -125,7 +128,7 @@ for (const [lite, mode, lm] of [['0', 'chat', ''], ['1', 'chat', ''], ['1', 'tex
     const s0 = await p.evaluate(() => [...document.querySelectorAll('.mbc-panel.live .mbc-label')].map(x => x.textContent.match(/[TS]\d+-[abcd]/)?.[0]).join(','));
     ok('스와이프: 옛 스와이프로 넘기면 그 선택지', s0 === want, `${s0} want ${want}`);
     // 옛 스와이프에서 고르고 보내기 → 모든 스와이프에서 블록이 빠지고 스와이프마다 보관
-    await pick(p, 0); await p.evaluate(() => T.send(null, 8));
+    await pick(p, 0); await p.evaluate(() => T.send(null, 8)); await p.waitForTimeout(1200);
     const tk = await p.evaluate((at) => { const m = T.ST.chat[at]; return { mes: /<choices>/.test(m.mes), sw: m.swipes.some(s => /<choices>/.test(s)), keep: m.swipe_info.map(x => !!x.extra?.mbcBlock) }; }, at);
     ok('보낸 뒤: 모든 스와이프에서 빠지고 스와이프마다 보관', !tk.mes && !tk.sw && tk.keep.every(Boolean), JSON.stringify(tk));
     // 내 메시지를 지우고 스와이프 1로 → 그 스와이프 선택지
@@ -212,6 +215,38 @@ for (const [lite, mode, lm] of [['0', 'chat', ''], ['1', 'chat', ''], ['1', 'tex
     await p.click('#mbc-side [data-mbc-act="tab"][data-g="spoil"]'); await p.waitForTimeout(300);
     ok('옆 동그라미: 탭 바꾸면 부채꼴에 그 항목', await p.evaluate(() => [...document.querySelectorAll('#mbc-side .mbc-fan .mbc-opt')].some(x => /문을 연다/.test(x.textContent))));
     if (process.env.SHOTS) await p.screenshot({ path: `${process.env.SHOTS}/side_tabs.png` });
+    ok('페이지 오류 없음', p.errs.length === 0, p.errs.join(' | '));
+    await p.close();
+}
+// ⑬ 저장: 받는 중 0회 · saveChat 직접 0회 · saveMetadata 0회 · 답 하나에 1번 · 답이 끝나고 1초 뒤 · 받는 중엔 본문 안 고침
+for (const lite of ['0', '1']) {
+    console.log(`▶ 저장 (라이트 ${lite === '1' ? '있음' : '없음'})`);
+    const p = await page(`lite=${lite}`);
+    await p.waitForTimeout(1300); await p.evaluate(() => { T.ST.saves = []; T.ST.marks = []; });
+    for (let t = 1; t <= 6; t++) {
+        if (t !== 4) await pick(p, t % 4); // 4턴은 직접 쓰기
+        await p.evaluate((t) => T.send(t === 4 ? '그냥 걷는다' : null, t), t);
+        ok(`저장 T${t}: 받는 중엔 앞 답 본문을 안 고침`, await p.evaluate(() => !T.ST.changedDuring));
+        await p.waitForTimeout(1300);
+        ok(`저장 T${t}: 끝난 뒤엔 앞 답 선택지 블록이 빠짐`, await p.evaluate(() => T.ST.chat.slice(0, -1).every(m => m.is_user || !/<choices>/.test(m.mes))));
+    }
+    await p.evaluate(() => T.regenerate(7)); await p.waitForTimeout(1300);
+    await p.evaluate(() => T.cont()); await p.waitForTimeout(1300);
+    // 다시 받기 · 추천 (조용한 생성) 뒤에도 1초 뒤 한 번
+    const act = () => p.evaluate(() => T.ST.marks.push({ ev: 'recv', t: performance.now() })); // 동작마다 칸 나누기
+    await act(); await p.click('.mbc-panel.live [data-mbc-act="reroll"]'); await p.click('.mbc-panel.live [data-mbc-act="rerollGo"]'); await p.waitForTimeout(1400);
+    await act(); await p.click('.mbc-panel.live [data-mbc-act="tab"][data-g="facts"]'); await p.waitForTimeout(1400);
+    const r = await p.evaluate(() => {
+        const S = T.ST.saves, M = T.ST.marks;
+        const recv = M.filter(x => x.ev === 'recv').map(x => x.t), start = M.filter(x => x.ev === 'start').map(x => x.t);
+        const all = M.map(x => x.t).sort((a, b) => a - b); const per = recv.map(t0 => { const t1 = all.find(x => x > t0) ?? Infinity; return S.filter(x => x.t >= t0 && x.t < t1 && x.kind === 'deb'); });
+        return { streaming: S.filter(x => x.streaming).length, direct: S.filter(x => x.kind === 'direct').length, meta: S.filter(x => x.kind === 'meta').length,
+            perReply: per.map(a => a.length), late: per.slice(0, -2).every((a, k) => a.every(x => x.t - recv[k] >= 900)), total: S.length, quietSaves: S.filter(x => x.t > (M[M.length - 1]?.t ?? 0) + 1500).length };
+    });
+    ok('저장: 받는 중 저장 0회', r.streaming === 0, JSON.stringify(r));
+    ok('저장: saveChat 직접 0회 · saveMetadata 0회', r.direct === 0 && r.meta === 0, JSON.stringify(r));
+    ok('저장: 답 하나에 저장 요청 1번 이하 (겹치지 않음)', r.perReply.every(n => n <= 1), JSON.stringify(r.perReply));
+    ok('저장: 답이 끝나고 1초쯤 뒤에', r.late, JSON.stringify(r));
     ok('페이지 오류 없음', p.errs.length === 0, p.errs.join(' | '));
     await p.close();
 }

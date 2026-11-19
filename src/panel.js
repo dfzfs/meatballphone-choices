@@ -1,5 +1,5 @@
 // 선택지 창: 지금 고를 수 있는 답엔 목록 · 지난 답엔 고른 것 하나만 칩
-import { settings, ctx, esc, meta, saveMeta, kindOf, riskOf, kindsOn, risksOn, checkFor, rollCheck, userCount, lite, liteLuck, litePreview, setExtra } from './core.js';
+import { settings, ctx, esc, meta, saveMeta, requestSave, isGenerating, kindOf, riskOf, kindsOn, risksOn, checkFor, rollCheck, userCount, lite, liteLuck, litePreview, setExtra } from './core.js';
 import { choicesOf, NUM_RE, TAG_RE, setInject, buildPrompt, rerollPrompt } from './prompt.js';
 import { gst, guideOn, guideRows, guideItems, guideLabel, SECTIONS } from './guide.js';
 
@@ -183,6 +183,7 @@ const swap = (text, block) => /<choices>/i.test(text ?? '') ? text.replace(/<cho
 export async function reroll(i, extra) {
     const c = ctx(), m = c.chat?.[i];
     if (!m || ui.rerolling) return;
+    if (isGenerating()) { toastr.info('답을 받는 중이에요. 끝난 뒤에 다시 받아 주세요.', '미트볼 선택지'); return; }
     const items = choicesOf(i) ?? [];
     const gloss = !!(m.extra?.display_text || m.extra?.mbcShown);
     ui.rerolling = true;
@@ -199,7 +200,7 @@ export async function reroll(i, extra) {
         if (inMes === null) patch.mbcBlock = orig; // 이미 본문에서 옮겨 둔 답(분기 · 삭제로 다시 살아난 답)
         if (gloss) { const d = swap(m.extra?.display_text, shown); if (d !== null) patch.display_text = d; else patch.mbcShown = shown; }
         setExtra(m, patch);
-        await c.saveChat?.();
+        requestSave();
         if (typeof c.updateMessageBlock === 'function') c.updateMessageBlock(i, m);
         ui.sel = null; ui.reroll = false; ui.rerollText = '';
     } catch (e) { toastr.error(String(e?.message ?? e), '미트볼 선택지'); }
