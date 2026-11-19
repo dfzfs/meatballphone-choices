@@ -37,7 +37,7 @@ function onSent(idx) {
     const txt = `${m.mes}\n${m.extra?.display_text ?? ''}`;
     if (p && (txt.includes(p.label.slice(0, 8)) || (p.shown && txt.includes(p.shown.slice(0, 8))))) {
         setExtra(m, { mbc: p }); // 늘 남김 (칩 · 분기 · 라이트 분류 모델이 읽음)
-        const L = lite(); if (typeof L?.pendingChoice === 'function') { try { L.pendingChoice({ ...p, mesId: i }); } catch (e) { console.warn(LOG, e); } } // 라이트에 받는 자리가 있으면 거기에도
+        const L = lite(); if (typeof L?.pendingChoice === 'function') { try { L.pendingChoice(i, p); } catch (e) { console.warn(LOG, e); } } // 라이트에 받는 자리가 있으면 거기에도
     }
     md.pending = null;
     // 앞 답들의 선택지 블록 떼기는 이 답을 다 받은 뒤 1초에 (이번 프롬프트에선 stripOld가 빼 줌) · 저장도 그때 한 번
@@ -65,6 +65,7 @@ document.addEventListener('click', (e) => {
         decorateAll(true); return;
     }
     if (act === 'guideGo') { const p = fetchGuide(i, null); decorateAll(true); p.then(() => decorateAll(true, true)); return; }
+    if (act === 'ask') { ui.tab = 'choices'; ui.open = true; const p = reroll(i, ''); decorateAll(true); p.then(() => decorateAll(true, true)); return; } // 🎯 눌러야 받는 선택지
     if (act === 'help') { helpSheet(); return; }
     if (act === 'edit') { openEditor(); return; }
     if (act === 'click') { const s = settings(); s.click = s.click === 'send' ? 'fill' : 'send'; ctx().saveSettingsDebounced(); decorateAll(true); return; }

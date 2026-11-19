@@ -52,7 +52,7 @@ function liveHTML(i, items) {
     const rr = ui.reroll ? `<div class="mbc-reroll"><input type="text" class="mbc-rr-in" placeholder="추가 지시 (비워도 돼요) · 예: ${tab === 'facts' ? '인물 비밀 위주로' : tab === 'route' ? '로맨스 쪽으로' : '더 과감하게'}" value="${esc(ui.rerollText)}"><button class="mbc-go sm" data-mbc-act="rerollGo" ${busy ? 'disabled' : ''}>${busy ? '받는 중…' : '다시 받기'}</button></div>` : '';
     if (tab !== 'choices') return `${head}${rr}${guideRows(i, tab)}`;
     const det = set.confirm && ui.sel?.i === i && items[ui.sel.n] ? detailHTML(i, items[ui.sel.n], ui.sel.n) : '';
-    const list = items.length ? `<div class="mbc-list">${items.map((it, n) => optHTML(i, it, n)).join('')}</div>` : '<div class="mbc-gempty"><span>이 답엔 선택지가 없어요</span><button class="mbc-chip" data-mbc-act="reroll">🔄 선택지 받기</button></div>';
+    const list = items.length ? `<div class="mbc-list">${items.map((it, n) => optHTML(i, it, n)).join('')}</div>` : (ui.rerolling ? '<div class="mbc-gempty"><span>선택지를 받는 중…</span></div>' : `<div class="mbc-gempty"><span>${set.gen === 'auto' ? '이 답엔 선택지가 없어요' : '필요할 때만 받아요'}</span><button class="mbc-chip" data-mbc-act="ask">🎯 선택지 받기 <small>(AI 1회)</small></button></div>`);
     return `${head}${rr}${list}${det}`;
 }
 
@@ -109,7 +109,7 @@ export function decorate(mesEl, lastAI, force = false) {
     if (items) stripRaw(textEl, items);
     if (live && ui.gen) { panel?.remove(); return; } // 받는 중엔 그리지 않음
     items ??= [];
-    if (live && set.view === 'side' && window.innerWidth >= 700 && items.length) { panel?.remove(); renderSide(i, items); return; }
+    if (live && set.view === 'side' && window.innerWidth >= 700 && (items.length || set.gen !== 'auto')) { panel?.remove(); renderSide(i, items); return; }
     const picked = live ? null : pickedFor(i);
     if (!live && (!picked || !items.length)) { panel?.remove(); return; } // 고르지 않고 직접 쓴 답이면 칩도 없음
     const typing = panel?.contains(document.activeElement) && document.activeElement.classList.contains('mbc-rr-in');
@@ -242,7 +242,8 @@ function sideHTML(i, items) {
     const card = ui.reroll ? `<div class="mbc-sidecard"><div class="mbc-reroll"><input type="text" class="mbc-rr-in" placeholder="추가 지시 (비워도 돼요)" value="${esc(ui.rerollText)}"><button class="mbc-go sm" data-mbc-act="rerollGo" ${busy ? 'disabled' : ''}>${busy ? '받는 중…' : '다시 받기'}</button></div></div>`
         : sel && set.confirm ? `<div class="mbc-sidecard">${detailHTML(i, sel, ui.sel.n)}</div>` : '';
     let pills;
-    if (tab === 'choices') pills = items.map((it, n) => sidePill(i, it, n));
+    if (tab === 'choices') pills = items.length ? items.map((it, n) => sidePill(i, it, n))
+        : [`<button class="mbc-opt ring" style="--k:0" data-mbc-act="ask" ${ui.rerolling ? 'disabled' : ''}><span class="mbc-kind"><span class="ic">🎯</span></span><span class="mbc-ring-txt"><span class="mbc-label">${ui.rerolling ? '받는 중…' : '선택지 받기 (AI 1회)'}</span></span></button>`];
     else {
         const list = guideItems(i, tab), S = SECTIONS[tab];
         pills = gst.busy ? [`<button class="mbc-opt ring" style="--k:0" disabled><span class="mbc-kind"><span class="ic">${S.icon}</span></span><span class="mbc-ring-txt"><span class="mbc-label">받는 중…</span></span></button>`]
@@ -271,11 +272,14 @@ export function placeSide() {
     el.style.display = c.width < 50 || c.height < 50 || chatEl.offsetParent === null ? 'none' : '';
     const mes = document.querySelector(`#chat .mes[mesid="${el.dataset.i}"]`)?.getBoundingClientRect();
     const roomR = window.innerWidth - c.right, roomL = c.left;
+    const set = settings();
     let x, dir = 'left';
-    if (roomR >= 64) x = c.right + Math.min(roomR / 2, 48);
-    else if (roomL >= 64) { x = c.left - Math.min(roomL / 2, 48); dir = 'right'; }
-    else x = c.right - 40;
-    const y = Math.max(c.top + 48, Math.min((mes ? mes.bottom : c.bottom) - 48, c.bottom - 48));
+    const goR = () => { x = roomR >= 64 ? c.right + Math.min(roomR / 2, 48) : c.right - 40; dir = 'left'; };
+    const goL = () => { x = roomL >= 64 ? c.left - Math.min(roomL / 2, 48) : c.left + 40; dir = 'right'; };
+    if (set.sideX === 'right') goR(); else if (set.sideX === 'left') goL();
+    else if (roomR >= 64) goR(); else if (roomL >= 64) goL(); else goR();
+    const want = set.sideY === 'top' ? c.top + 60 : set.sideY === 'middle' ? (c.top + c.bottom) / 2 : set.sideY === 'bottom' ? c.bottom - 60 : (mes ? mes.bottom : c.bottom) - 48;
+    const y = Math.max(c.top + 48, Math.min(want, c.bottom - 48));
     el.style.left = `${Math.round(x)}px`; el.style.top = `${Math.round(y)}px`; el.dataset.dir = dir; el.dataset.cardUp = window.innerHeight - y < 330 ? '1' : ''; el.dataset.toolsDown = y - c.top < el.querySelectorAll('.mbc-tools > *').length * 32 + 40 ? '1' : ''; // 위가 좁으면 단추 줄을 아래로
     if (!el.dataset.solid) { // 반투명 테마여도 알약은 불투명
         const v = getComputedStyle(document.documentElement).getPropertyValue('--SmartThemeBlurTintColor').trim().match(/rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/);

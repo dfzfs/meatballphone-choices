@@ -260,6 +260,31 @@ for (const lite of ['0', '1']) {
     ok('휴대폰: 옆으로 넘치지 않음', w);
     await p.close();
 }
+
+// ⑭ 눌러야 받는 선택지(gen=ask): 본편 지시 없음 · 🎯 누르면 AI 1회 · 고른 결과는 다음 답 1번 · 옆 동그라미 자리
+{
+    console.log('▶ 눌러야 받는 선택지 · 옆 동그라미 자리');
+    const p = await page('lite=0&mode=chat&gen=ask');
+    await p.evaluate(() => { T.ST.reply = (n) => `장면 ${n}. 문 앞에 섰다.`; });
+    await p.evaluate(() => T.send('연구동으로 간다', 1)); await p.waitForTimeout(400);
+    const s1 = await last(p);
+    ok('눌러서: 본편에 선택지 지시 없음', !/\[CHOICES\]/.test(s1.text), s1.text.slice(0, 200));
+    ok('눌러서: 답 밑에 「🎯 선택지 받기」', await p.evaluate(() => !!document.querySelector('.mbc-panel.live [data-mbc-act="ask"]') && !(T.ST.quietN ?? 0)));
+    await p.click('.mbc-panel.live [data-mbc-act="ask"]'); await p.waitForTimeout(500);
+    ok('누르면 AI 1회로 선택지가 뜸', await p.evaluate(() => T.ST.quietN === 1 && document.querySelectorAll('.mbc-panel.live .mbc-opt').length === 3));
+    const lbl = await pick(p, 0);
+    await p.evaluate(() => T.send(null, 2)); await p.waitForTimeout(300);
+    const s2 = await last(p);
+    ok('고른 결과 지시는 다음 답 1번 · 선택지 지시는 여전히 없음', /\[CHOICE RESULT\]/.test(s2.text) && !/\[CHOICES\]/.test(s2.text), lbl);
+    ok('보낸 프롬프트에 선택지 블록 0', blocks(s2.text) === 0);
+    // 옆 동그라미 자리: 왼쪽 · 위
+    await p.evaluate(async () => { const { settings } = await import('../../src/core.js'); const s = settings(); s.view = 'side'; s.sideX = 'left'; s.sideY = 'top'; s._rev = 77; await T.es.emit('MESSAGE_UPDATED'); await T.wait(150); });
+    const pos = await p.evaluate(() => { const el = document.getElementById('mbc-side'), c = document.getElementById('chat').getBoundingClientRect(); return el ? { x: parseFloat(el.style.left), y: parseFloat(el.style.top), cl: c.left, ct: c.top, ask: !!el.querySelector('[data-mbc-act="ask"]') } : null; });
+    ok('옆 동그라미: 왼쪽 · 위로 고를 수 있음', !!pos && pos.x <= pos.cl + 45 && pos.y <= pos.ct + 70, JSON.stringify(pos));
+    ok('옆 동그라미에서도 「선택지 받기」', !!pos?.ask);
+    ok('페이지 오류 없음', p.errs.length === 0, p.errs.join(' | '));
+    await p.close();
+}
 console.log(`\n결과: 통과 ${pass} · 실패 ${fail}`);
 await browser.close(); srv.close();
 process.exit(fail ? 1 : 0);

@@ -16,11 +16,13 @@ function body() {
     const s = settings();
     return `<div class="mbc-sec">선택지</div><div class="mbc-card">
         ${row('사용', '', sw('enabled', s.enabled))}
+        ${row('받는 때', '눌러서 = 「🎯 선택지 받기」를 누를 때만 AI 1회 (본편 토큰 0) · 매 답 = 본편이 답마다 같이 씀', seg('gen', s.gen, [['ask', '눌러서'], ['auto', '매 답']]))}
         ${row('개수', '', seg('count', s.count, [3, 4, 5, 6].map(n => [n, `${n}개`])))}
         ${row('고르는 법', '두 번 = 눌러서 설명 · 확률을 보고 「이걸로」', seg('confirm', s.confirm, [[true, '두 번'], [false, '한 번']]))}
         ${row('고르면', '', seg('click', s.click, [['fill', '입력창에'], ['send', '바로 보내기']]))}
         ${row('넣을 글', '원문 = 번역 전 글', seg('input', s.input, [['raw', '원문'], ['shown', '화면 글']]))}
         ${row('보는 방식', '옆 동그라미 = 채팅 옆 「?」에 마우스를 올리면 부채꼴로 펼침 (좁은 화면은 목록)', seg('view', s.view, [['list', '목록'], ['side', '옆 동그라미']]))}
+        ${s.view === 'side' ? `${row('동그라미 가로', '', seg('sideX', s.sideX ?? 'auto', [['auto', '자동'], ['right', '오른쪽'], ['left', '왼쪽']]))}${row('동그라미 세로', '마지막 답 = 마지막 답 옆을 따라감', seg('sideY', s.sideY ?? 'msg', [['msg', '마지막 답'], ['top', '위'], ['middle', '가운데'], ['bottom', '아래']]))}` : ''}
     </div>
     <div class="mbc-sec">탭 — 선택지 옆에 둘 것 (처음 누를 때 AI 1회로 한꺼번에)</div><div class="mbc-card">${Object.entries(SECTIONS).map(([k, x]) => row(`${x.icon} ${esc(x.name)}`, esc(x.desc), sw(`guide.${k}`, s.guide?.[k] !== false))).join('')}</div>
     <div class="mbc-sec">성향</div><div class="mbc-card">${KINDS.map(k => row(`${k.icon} ${esc(k.name)}`, esc(k.desc), sw(`kinds.${k.id}`, s.kinds[k.id] !== false))).join('')}</div>
