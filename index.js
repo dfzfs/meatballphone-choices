@@ -2,7 +2,8 @@
 // 저장: 선택지 블록은 그 AI 메시지(스와이프마다) extra · 고른 기록은 그다음 사용자 메시지 extra. 따로 쌓는 기록 없음.
 import { settings, ctx, meta, saveMeta, userCount, LOG, liteClear, setExtra } from './src/core.js';
 import { onBeforeGen, setInject, buildPrompt, stripOld, tuck } from './src/prompt.js';
-import { decorate, lastAIIndex, ui, choose, helpSheet, reroll, branchHere } from './src/panel.js';
+import { decorate, lastAIIndex, ui, choose, helpSheet, reroll, branchHere, dropSide, placeSide } from './src/panel.js';
+import { fetchGuide, gst, guideText } from './src/guide.js';
 import { openEditor, setOnChange, placeEditDock } from './src/editor.js';
 
 let busy = false;
@@ -12,7 +13,9 @@ function decorateAll(recentOnly = false, force = false) {
     try {
         const lastAI = lastAIIndex();
         const els = [...document.querySelectorAll('#chat .mes')];
+        ui.side = false;
         (recentOnly ? els.slice(-4) : els).forEach(el => { try { decorate(el, lastAI, force); } catch (e) { console.warn(LOG, e); } });
+        if (!ui.side) dropSide(); // 옆 동그라미를 안 쓰면
     } finally { busy = false; }
 }
 const saveChat = () => { const c = ctx(); (c.saveChatDebounced ?? c.saveChat)?.call(c); };
@@ -42,17 +45,26 @@ function onSent(idx) {
 // 누르기
 document.addEventListener('click', (e) => {
     const t = e.target.closest?.('.mbc-panel [data-mbc-act], .mbc-panel .mbc-opt[data-mbc-i]');
-    if (!t) return;
+    if (!t) { if ((ui.open || ui.sel || ui.guide || ui.reroll) && document.getElementById('mbc-side') && !e.target.closest?.('#mbc-side, #mbc-editdock, .popup')) { ui.open = false; ui.sel = null; ui.guide = false; ui.reroll = false; decorateAll(true); } return; }
     e.preventDefault(); e.stopPropagation();
     const panel = t.closest('.mbc-panel');
-    const i = Number(panel.closest('.mes')?.getAttribute('mesid'));
+    const i = Number(panel.closest('.mes')?.getAttribute('mesid') ?? panel.dataset.i);
     const act = t.dataset.mbcAct;
+    if (act === 'dock') { // 옆 동그라미: 펼친 채 다시 누르면 닫기
+        if (panel.classList.contains('open')) { ui.open = false; ui.hover = false; ui.sel = null; ui.reroll = false; ui.guide = false; ui.hoverBlock = true; panel.classList.remove('open'); }
+        else { ui.open = true; ui.hoverBlock = false; }
+        decorateAll(true); return;
+    }
+    if (act === 'guide') { ui.guide = !ui.guide; ui.reroll = false; if (ui.guide) ui.open = true; decorateAll(true); return; }
+    if (act === 'gtab') { gst.tab = t.dataset.g; decorateAll(true); return; }
+    if (act === 'guideGo') { const p = fetchGuide(i, t.dataset.g || null); decorateAll(true); p.then(() => decorateAll(true, true)); return; }
+    if (act === 'guideUse') { const txt = guideText(i, t.dataset.g, Number(t.dataset.n)); if (txt) { const ta = document.getElementById('send_textarea'); ta.value = txt; ta.dispatchEvent(new Event('input', { bubbles: true })); ta.focus(); if (settings().click === 'send' && t.dataset.g === 'spoil') document.getElementById('send_but')?.click(); } return; }
     if (act === 'help') { helpSheet(); return; }
     if (act === 'edit') { openEditor(); return; }
     if (act === 'click') { const s = settings(); s.click = s.click === 'send' ? 'fill' : 'send'; ctx().saveSettingsDebounced(); decorateAll(true); return; }
-    if (act === 'reroll') { ui.reroll = !ui.reroll; decorateAll(true); if (ui.reroll) setTimeout(() => panel.querySelector('.mbc-rr-in')?.focus(), 30); return; }
+    if (act === 'reroll') { ui.reroll = !ui.reroll; ui.guide = false; if (ui.reroll) ui.open = true; decorateAll(true); if (ui.reroll) setTimeout(() => document.querySelector('.mbc-rr-in')?.focus(), 30); return; }
     if (act === 'rerollGo') { ui.rerollText = panel.querySelector('.mbc-rr-in')?.value ?? ui.rerollText; const p = reroll(i, ui.rerollText.trim()); decorateAll(true); p.then(() => decorateAll(true, true)); return; }
-    if (act === 'past') { ui.open.has(i) ? ui.open.delete(i) : ui.open.add(i); decorateAll(); return; }
+    if (act === 'past') { ui.past.has(i) ? ui.past.delete(i) : ui.past.add(i); decorateAll(); return; }
     if (act === 'branch') { branchHere(i); return; }
     if (act === 'go') { if (ui.sel) choose(ui.sel.i, ui.sel.n).then(() => decorateAll(true)); return; }
     const n = Number(t.dataset.mbcN);
@@ -113,13 +125,13 @@ function init() {
         for (const m of d.chat) { if (typeof m.content === 'string') m.content = stripOld(m.content); else if (Array.isArray(m.content)) for (const p of m.content) if (p?.type === 'text') p.text = stripOld(p.text); }
     });
     on('GENERATE_AFTER_COMBINE_PROMPTS', (d) => { if (settings().enabled && typeof d?.prompt === 'string') d.prompt = stripOld(d.prompt); });
-    on('GENERATION_STARTED', (type, _o, dry) => { if (!dry && type !== 'quiet') { ui.gen = true; ui.sel = null; ui.reroll = false; } });
+    on('GENERATION_STARTED', (type, _o, dry) => { if (!dry && type !== 'quiet') { ui.gen = true; ui.sel = null; ui.reroll = false; ui.guide = false; ui.open = false; } });
     for (const ev of ['GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_RECEIVED', 'CHARACTER_MESSAGE_RENDERED']) on(ev, () => { ui.gen = false; });
     // 답이 끝나면 결과 지시는 지움 (다시 생성하면 GENERATION_AFTER_COMMANDS가 같은 지시를 다시 씀)
     on('MESSAGE_RECEIVED', () => { if (settings().enabled) setInject(buildPrompt(userCount() + 1, null)); });
     for (const ev of ['MESSAGE_SWIPED', 'MESSAGE_DELETED']) on(ev, () => { ui.sel = null; });
     on('CHAT_CHANGED', () => {
-        setInject(''); ui.sel = null; ui.reroll = false; ui.open.clear(); ui.gen = false; liteClear();
+        setInject(''); ui.sel = null; ui.reroll = false; ui.guide = false; ui.open = false; ui.past.clear(); ui.gen = false; gst.tab = null; liteClear();
         // 채팅을 열면: 마지막 답(아직 고를 수 있는 것)을 뺀 옛 답 정리
         if (settings().enabled) { const last = lastAIIndex(); const chat = ctx().chat ?? []; const end = last >= 0 && !chat[last + 1] ? last : chat.length; if (tuckBefore(end)) saveChat(); }
         setTimeout(() => { watch(); decorateAll(); }, 50);

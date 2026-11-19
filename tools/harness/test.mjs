@@ -142,6 +142,60 @@ for (const [lite, mode] of [['0', 'chat'], ['1', 'chat'], ['1', 'text']]) {
     }
     await p.close();
 }
+// ⑩ 함정 (기본 끔 → 켜면 「안전」으로 위장 · 고르면 결과 · 칩에서 공개)
+{
+    console.log('▶ 함정');
+    const p = await page('lite=0');
+    ok('함정: 기본 끔 → 안내에 trap 없음', !/trap/.test(await p.evaluate(() => T.ST.extensionPrompts.mb_choices?.value ?? (async () => '')())) && await p.evaluate(async () => { const { buildPrompt } = await import('../../src/prompt.js'); return !/trap/.test(buildPrompt(1, null)); }));
+    await p.evaluate(async () => { const { settings } = await import('../../src/core.js'); settings().risks.trap = true; for (const k of ['none', 'safe', 'gamble', 'price']) settings().risks[k] = false; });
+    ok('함정: 켜면 안내에 trap', await p.evaluate(async () => { const { buildPrompt } = await import('../../src/prompt.js'); return /\[trap\]/.test(buildPrompt(1, null)); }));
+    await p.evaluate(async () => { T.ST.reply = (n) => `장면 ${n}.\n\n<choices>\n[rational|trap] T${n}-a 왼쪽 문으로 간다\n[persona|safe] T${n}-b 기다린다\n</choices>`; await T.send('간다', 1); });
+    ok('함정: 「안전」 딱지로 보임 · 함정 글자 없음', await p.evaluate(() => { const o = document.querySelector('.mbc-panel.live .mbc-opt[data-mbc-n="0"]'); return /안전/.test(o.textContent) && !/함정/.test(o.textContent); }));
+    await pick(p, 0); await p.evaluate(() => T.send(null, 2));
+    ok('함정: 고르면 다음 답에 함정 발동 지시', /TRAP/.test((await last(p)).text));
+    ok('함정: 지난 칩에 「함정이었다」', await p.evaluate(() => /함정이었다/.test(document.querySelector('.mbc-panel.done')?.textContent ?? '')));
+    await p.close();
+}
+// ⑪ 옆 동그라미 (넓은 화면) · 좁으면 목록
+{
+    console.log('▶ 옆 동그라미');
+    const p = await page('lite=1', 1280);
+    await p.evaluate(async () => { const { settings } = await import('../../src/core.js'); settings().view = 'side'; settings()._rev = 9; await T.es.emit('MESSAGE_UPDATED'); await T.wait(100); });
+    ok('옆: 「?」 동그라미 · 답 밑 목록 없음', await p.evaluate(() => !!document.getElementById('mbc-side') && !document.querySelector('.mes .mbc-panel.live')));
+    await p.hover('.mbc-sidehub'); await p.waitForTimeout(500);
+    ok('옆: 올리면 펼침', await p.evaluate(() => document.getElementById('mbc-side').classList.contains('open')));
+    await p.click('#mbc-side .mbc-opt[data-mbc-n="1"]'); await p.click('#mbc-side [data-mbc-act="go"]');
+    await p.waitForFunction(() => document.getElementById('send_textarea').value.length > 0, null, { timeout: 4000 });
+    ok('옆: 고르면 입력창에', /T0-b/.test(await p.evaluate(() => document.getElementById('send_textarea').value)));
+    if (process.env.SHOTS) { await p.evaluate(() => document.getElementById('send_textarea').value = ''); await p.hover('.mbc-sidehub'); await p.waitForTimeout(500); await p.screenshot({ path: `${process.env.SHOTS}/side.png` }); }
+    await p.setViewportSize({ width: 390, height: 844 }); await p.evaluate(async () => { await T.es.emit('MESSAGE_UPDATED'); await T.wait(100); });
+    ok('옆: 좁은 화면은 목록', await p.evaluate(() => !document.getElementById('mbc-side') && !!document.querySelector('.mes .mbc-panel.live')));
+    ok('페이지 오류 없음', p.errs.length === 0, p.errs.join(' | '));
+    await p.close();
+}
+// ⑫ 🧭 추천 — 누를 때만 AI 1회 · 답 extra에 저장 · AI에게 안 감
+{
+    console.log('▶ 추천');
+    const p = await page('lite=1');
+    ok('추천: 누르기 전엔 AI 호출 0', await p.evaluate(() => (T.ST.quietN ?? 0) === 0));
+    await p.click('.mbc-panel.live [data-mbc-act="guide"]');
+    await p.click('.mbc-panel.live [data-mbc-act="guideGo"]'); await p.waitForTimeout(300);
+    const g = await p.evaluate(() => ({ n: T.ST.quietN, ex: T.ST.chat[0].extra.mbcGuide, mes: T.ST.chat[0].mes, swi: T.ST.chat[0].swipe_info[0].extra.mbcGuide }));
+    ok('추천: AI 1회로 세 칸', g.n === 1 && g.ex?.route?.length === 2 && g.ex?.facts?.length === 2 && g.ex?.spoil?.length === 2, JSON.stringify(g.ex));
+    ok('추천: 본문엔 없고 extra(스와이프)에만', !/서하와 비밀|우산/.test(g.mes) && !!g.swi);
+    await p.click('.mbc-panel.live [data-mbc-act="gtab"][data-g="spoil"]'); await p.click('.mbc-panel.live [data-mbc-act="guideUse"][data-g="spoil"]');
+    ok('추천: 미래 스포 누르면 그 행동(원문)이 입력창에', await p.evaluate(() => document.getElementById('send_textarea').value) === 'Open the door');
+    await p.click('.mbc-panel.live [data-mbc-act="gtab"][data-g="route"]'); await p.click('.mbc-panel.live [data-mbc-act="guideUse"][data-g="route"]');
+    ok('추천: 진행 추천 누르면 OOC 지시', /^\(OOC: 다음 답은 이 방향으로 — 서하와 비밀을 나눈다/.test(await p.evaluate(() => document.getElementById('send_textarea').value)));
+    await p.click('.mbc-panel.live [data-mbc-act="gtab"][data-g="facts"]');
+    if (process.env.SHOTS) { await p.screenshot({ path: `${process.env.SHOTS}/guide.png` }); }
+    await p.click('.mbc-panel.live [data-mbc-act="gtab"][data-g="facts"]'); await p.click('.mbc-panel.live [data-mbc-act="guideGo"][data-g="facts"]'); await p.waitForTimeout(200);
+    ok('추천: 칸 하나만 다시 받기 = AI 1회 더', await p.evaluate(() => T.ST.quietN === 2 && /<facts>/.test(T.ST.quiet) && !/<route>/.test(T.ST.quiet)));
+    await p.evaluate(() => T.send('문을 연다', 1));
+    ok('추천: 다음 프롬프트에 추천 글 없음', !/서하와 비밀|우산을 두고|푸른 빛의 정체/.test((await last(p)).text));
+    ok('페이지 오류 없음', p.errs.length === 0, p.errs.join(' | '));
+    await p.close();
+}
 // ⑨ 휴대폰 폭에서도 고르기
 {
     console.log('▶ 휴대폰 폭');

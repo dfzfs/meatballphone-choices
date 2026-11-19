@@ -2,6 +2,7 @@
 import { settings, save, esc, lite, userCount, meta } from './core.js';
 import { KINDS, RISKS } from './data.js';
 import { injectTokens, sceneTokens, buildPrompt } from './prompt.js';
+import { SECTIONS } from './guide.js';
 
 let onChange = () => {};
 export function setOnChange(fn) { onChange = fn; }
@@ -19,9 +20,11 @@ function body() {
         ${row('고르는 법', '두 번 = 눌러서 설명 · 확률을 보고 「이걸로」', seg('confirm', s.confirm, [[true, '두 번'], [false, '한 번']]))}
         ${row('고르면', '', seg('click', s.click, [['fill', '입력창에'], ['send', '바로 보내기']]))}
         ${row('넣을 글', '원문 = 번역 전 글', seg('input', s.input, [['raw', '원문'], ['shown', '화면 글']]))}
+        ${row('보는 방식', '옆 동그라미 = 채팅 옆 「?」에 마우스를 올리면 부채꼴로 펼침 (좁은 화면은 목록)', seg('view', s.view, [['list', '목록'], ['side', '옆 동그라미']]))}
     </div>
+    <div class="mbc-sec">🧭 추천 — 누를 때만 AI 1회 · 받을 칸</div><div class="mbc-card">${Object.entries(SECTIONS).map(([k, x]) => row(`${x.icon} ${esc(x.name)}`, esc(x.desc), sw(`guide.${k}`, s.guide?.[k] !== false))).join('')}</div>
     <div class="mbc-sec">성향</div><div class="mbc-card">${KINDS.map(k => row(`${k.icon} ${esc(k.name)}`, esc(k.desc), sw(`kinds.${k.id}`, s.kinds[k.id] !== false))).join('')}</div>
-    <div class="mbc-sec">위험</div><div class="mbc-card">${RISKS.map(r => row(`${r.icon || '·'} ${esc(r.name)}`, esc(r.desc), sw(`risks.${r.id}`, s.risks[r.id] !== false))).join('')}</div>
+    <div class="mbc-sec">위험</div><div class="mbc-card">${RISKS.map(r => row(`${r.icon || '·'} ${esc(r.name)}${r.off ? ' <small>(기본 끔)</small>' : ''}`, esc(r.desc), sw(`risks.${r.id}`, s.risks[r.id] === true || (s.risks[r.id] !== false && !r.off)))).join('')}</div>
     <div class="mbc-sec">본편에 넣는 글</div><div class="mbc-card">
         ${row(`매 턴 약 ${injectTokens()}토큰`, lite() ? `그중 라이트 장면 줄 약 ${sceneTokens()}토큰 · 고른 다음 턴만 결과 지시가 더 붙어요` : '고른 다음 턴만 결과 지시가 더 붙어요', '<button type="button" class="mbc-btn" data-act="peek">보기</button>')}
         ${row('주입 깊이', '숫자가 작을수록 AI가 잘 지켜요', seg('depth', s.depth, [0, 1, 2, 4].map(n => [n, String(n)])))}

@@ -15,8 +15,10 @@ export const DEFAULTS = Object.freeze({
     click: 'fill',       // fill · send
     input: 'raw',        // raw = 원문(번역 전) · shown = 화면 글
     depth: 1,
+    view: 'list',        // list = 답 밑 목록 · side = 채팅 옆 「?」 동그라미 → 올리면 부채꼴 (좁은 화면은 목록)
     kinds: Object.fromEntries(KINDS.map(k => [k.id, true])),
-    risks: Object.fromEntries(RISKS.map(r => [r.id, true])),
+    risks: Object.fromEntries(RISKS.map(r => [r.id, !r.off])), // 함정은 기본 끔
+    guide: { route: true, facts: true, spoil: true }, // 🧭 추천에서 받을 칸
 });
 
 let _ok = null;
@@ -28,7 +30,8 @@ export function settings() {
     if (s._v !== SET_V) migrate(s);
     for (const [k, v] of Object.entries(DEFAULTS)) if (s[k] === undefined) s[k] = typeof v === 'object' ? { ...v } : v;
     for (const k of KINDS) s.kinds[k.id] ??= true;
-    for (const r of RISKS) s.risks[r.id] ??= true;
+    for (const r of RISKS) s.risks[r.id] ??= !r.off;
+    s.guide = { ...DEFAULTS.guide, ...(s.guide ?? {}) };
     s.count = clamp(Number(s.count) || 4, 3, 6);
     _ok = s;
     return s;
@@ -37,9 +40,10 @@ export function settings() {
 function migrate(s) {
     const keep = {};
     for (const k of ['enabled', 'confirm', 'click', 'input', 'depth']) if (s[k] !== undefined) keep[k] = s[k];
+    if (s.layout === 'ring') keep.view = 'side'; // 옛 판에서 고리 메뉴를 쓰던 사람
     if (s.count !== undefined) keep.count = clamp(Number(s.count) || 4, 3, 6);
     if (Array.isArray(s.kinds)) keep.kinds = Object.fromEntries(KINDS.map(k => [k.id, s.kinds.find(x => x.id === k.id)?.on !== false]));
-    if (Array.isArray(s.risks)) keep.risks = Object.fromEntries(RISKS.map(r => [r.id, s.risks.find(x => x.id === r.id)?.on !== false]));
+    if (Array.isArray(s.risks)) keep.risks = Object.fromEntries(RISKS.map(r => [r.id, r.off ? false : s.risks.find(x => x.id === r.id)?.on !== false]));
     for (const k of Object.keys(s)) delete s[k];
     Object.assign(s, keep, { _v: SET_V });
     ctx().saveSettingsDebounced?.();
@@ -48,7 +52,7 @@ export const save = () => ctx().saveSettingsDebounced();
 export const kindOf = (id) => KINDS.find(k => k.id === id) ?? null;
 export const riskOf = (id) => RISKS.find(r => r.id === id) ?? RISKS[0];
 export const kindsOn = () => KINDS.filter(k => settings().kinds[k.id] !== false);
-export const risksOn = () => RISKS.filter(r => settings().risks[r.id] !== false);
+export const risksOn = () => RISKS.filter(r => r.off ? settings().risks[r.id] === true : settings().risks[r.id] !== false);
 
 // 고르는 중인 선택 (보내기 전) — 보내면 그 사용자 메시지 extra로 옮겨진다
 export function meta() {
