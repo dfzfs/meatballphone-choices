@@ -26,7 +26,7 @@ function base(s) {
         ${row('고르면', '선택지 창의 ↵ · ➤ 칩으로도 바꿔요', seg('click', s.click, [['fill', '입력창에 넣기'], ['send', '바로 보내기']]))}
         ${row('넣을 글', '원문 = 번역 전 글 (영어로 쓰는 AI면 영어)', seg('input', s.input, [['raw', '원문'], ['shown', '화면 글']]))}
         ${row('지난 선택지', '다음 답이 오면', seg('past', s.past, [['chip', '고른 것만 칩으로'], ['delete', '지우기']]))}
-        ${row('지난 선택지 AI에게 안 보내기', '본편에 쌓이는 <choices> 줄을 빼서 토큰을 아낌', sw('hideOld', s.hideOld))}
+        ${row('지난 선택지 AI에게 안 보내기', '다음 메시지를 보내면 지난 답의 <choices>를 본문에서 빼서 따로 보관 (화면 칩은 그대로) · 프롬프트 · 요약 · 다른 확장 어디에도 안 들어감', sw('hideOld', s.hideOld))}
     </div>
     <div class="mbc-sec">주사위 · 운세</div><div class="mbc-card">
         ${row('주사위', '모험 · 운에 맡기기는 d20을 굴림. 미트볼 능력치가 보정으로 들어감', sw('dice.on', s.dice.on))}

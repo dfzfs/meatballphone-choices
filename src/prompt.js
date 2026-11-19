@@ -116,8 +116,8 @@ export function parseBlock(text) {
 export function choicesOf(i) {
     const m = ctx().chat?.[i];
     if (!m || m.is_user || m.is_system) return null;
-    const raw = parseBlock(m.mes);
-    const shown = parseBlock(m.extra?.display_text) ?? raw; // 번역 확장이 만든 글(한국어)이 있으면 그걸 보여 준다
+    const raw = parseBlock(m.mes) ?? parseBlock(m.extra?.mbcBlock); // 지난 답은 본문에서 빼서 extra에 옮겨 둠
+    const shown = parseBlock(m.extra?.display_text) ?? parseBlock(m.extra?.mbcShown) ?? raw; // 번역 확장이 만든 글(한국어)이 있으면 그걸 보여 준다
     if (!shown) return null;
     const need = shown.some((it, k) => !(it.kind ?? raw?.[k]?.kind) || !(it.risk ?? raw?.[k]?.risk));
     const plan = need ? planFor(userCount(i), 0) : { kinds: [], risks: [] };
@@ -153,7 +153,23 @@ export function rerollPrompt(i, prev, extra, gloss) {
     L.push('Each option: one short, concrete action (under ~50 characters).');
     return L.join('\n');
 }
-// 지난 <choices> 블록을 AI에게 가는 글에서 빼기 (예시 블록은 남김)
+// 지난 <choices> 블록을 AI에게 가는 글에서 빼기 (닫는 태그를 빼먹었거나 줄바꿈이 달라도 · 이 확장의 안내 · 예시는 남김)
 export function stripOld(text) {
-    return String(text ?? '').replace(/<choices>[ \t]*\n[\s\S]*?<\/choices>/gi, (m, off, all) => /Example:\s*$/.test(all.slice(Math.max(0, off - 16), off)) ? m : '');
+    return String(text ?? '').replace(/<choices>([\s\S]*?)(?:<\/choices>|(?=<meatball>|<status>)|$)/gi, (m, body, off, all) => {
+        if (/Example:\s*$/.test(all.slice(Math.max(0, off - 16), off))) return m;
+        const b = body.trim(); if (b.length < 3 || b === '…') return m;
+        return '';
+    });
+}
+// 답 본문에서 <choices> 블록을 빼서 extra에 옮기기 → 프롬프트 · 요약 · 다른 확장 어디에도 안 들어감 (화면은 extra에서 읽음)
+const BLOCK = /\s*<choices>[\s\S]*?(?:<\/choices>|(?=<meatball>|<status>)|$)/i;
+export function tuck(m) {
+    if (!m || m.is_user || typeof m.mes !== 'string' || !/<choices>/i.test(m.mes)) return false;
+    const b = m.mes.match(BLOCK)?.[0]; if (!b) return false;
+    m.extra = { ...(m.extra ?? {}), mbcBlock: b.trim() };
+    m.mes = m.mes.replace(BLOCK, '').trimEnd();
+    if (Array.isArray(m.swipes) && Number.isInteger(m.swipe_id)) m.swipes[m.swipe_id] = m.mes;
+    const dt = m.extra.display_text;
+    if (typeof dt === 'string' && /<choices>/i.test(dt)) { m.extra.mbcShown = dt.match(BLOCK)?.[0]?.trim(); m.extra.display_text = dt.replace(BLOCK, '').trimEnd(); }
+    return true;
 }

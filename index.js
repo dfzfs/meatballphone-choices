@@ -1,7 +1,7 @@
 // 미트볼 선택지 — 답 끝의 선택지를 게임 선택지 창으로. 미트볼 상태창 칩 위에 뜬다.
 // 성향(18종 · 직접 만들기) × 위험(6종) · 미트볼 능력치 · 수치 · 오늘의 운세로 굴리는 d20 · 위험 모드 · 효과
 import { settings, ctx, meta, saveMeta, userCount, LOG, mbClear } from './src/core.js';
-import { onBeforeGen, setInject, buildPrompt, stripOld } from './src/prompt.js';
+import { onBeforeGen, setInject, buildPrompt, stripOld, tuck } from './src/prompt.js';
 import { decorate, lastAIIndex, ui, choose, helpSheet, reroll, sideLive, dropSide } from './src/panel.js';
 import { screenFx, wireHover } from './src/fx.js';
 import { openEditor, setOnChange } from './src/editor.js';
@@ -32,6 +32,15 @@ function onSent(idx) {
     md.pending = null;
     saveMeta();
     if (settings().enabled) setInject(buildPrompt(userCount(), m.extra?.mbc ?? null));
+    // 내가 보냈으니 앞 답의 선택지는 끝 → 본문에서 빼서 옮겨 둠
+    if (settings().enabled && settings().hideOld) { let n = 0; for (let k = i - 1; k >= 0 && k >= i - 3; k--) if (tuck(chat[k])) n++; if (n) (ctx().saveChatDebounced ?? ctx().saveChat)?.call(ctx()); }
+}
+// 채팅을 열 때: 마지막 답(아직 고를 수 있는 것)을 뺀 옛 답들의 선택지도 옮겨 둠
+function tuckOld() {
+    if (!settings().enabled || !settings().hideOld) return;
+    const chat = ctx().chat ?? []; const last = lastAIIndex();
+    let n = 0; for (let k = 0; k < chat.length; k++) if (k !== last || chat[k + 1]) { if (tuck(chat[k])) n++; }
+    if (n) { (ctx().saveChatDebounced ?? ctx().saveChat)?.call(ctx()); console.log(LOG, `지난 선택지 ${n}개를 본문에서 옮김`); }
 }
 
 // 누르기
@@ -139,7 +148,7 @@ function init() {
         for (const m of d.chat) { if (typeof m.content === 'string') m.content = strip(m.content); else if (Array.isArray(m.content)) for (const p of m.content) if (p?.type === 'text') p.text = strip(p.text); }
     });
     on('GENERATE_AFTER_COMBINE_PROMPTS', (d) => { if (settings().enabled && settings().hideOld && typeof d?.prompt === 'string') d.prompt = strip(d.prompt); });
-    on('CHAT_CHANGED', () => { setInject(''); ui.sel = null; ui.group = null; ui.open = false; ui.reroll = false; setTimeout(() => { watch(); decorateAll(); }, 50); });
+    on('CHAT_CHANGED', () => { setInject(''); ui.sel = null; ui.group = null; ui.open = false; ui.reroll = false; try { tuckOld(); } catch (e) { console.warn(LOG, e); } setTimeout(() => { watch(); decorateAll(); }, 50); });
     for (const ev of ['CHARACTER_MESSAGE_RENDERED', 'USER_MESSAGE_RENDERED', 'MESSAGE_UPDATED', 'MESSAGE_SWIPED', 'MESSAGE_EDITED', 'GENERATION_ENDED', 'GENERATION_STOPPED']) on(ev, () => setTimeout(() => decorateAll(true), 30));
     for (const ev of ['MESSAGE_DELETED', 'MORE_MESSAGES_LOADED']) on(ev, () => setTimeout(() => decorateAll(false), 30));
     // 미트볼 라이트 상태가 바뀌면 (대가 미리 보기 · 확률 · 운세) 최근 선택지만 다시
