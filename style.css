@@ -295,33 +295,6 @@ body.mbc-fx-tilt #chat { transform: rotate(calc(.35deg * var(--mbc-k, 1))); }
 .mbc-panel.mbc-mini { padding: 4px 12px; margin: 8px 0 4px; font-size: var(--t-m); opacity: .7; box-shadow: none; }
 .mbc-mini-k { font-size: var(--t-s); color: var(--sub); font-weight: 700; margin-right: 4px; }
 
-/* ───── 떠 있는 고리 메뉴 (답 오른쪽 아래 단추 → 펼침) ───── */
-.mbc-dock { position: absolute; right: 12px; bottom: -18px; z-index: 30; }
-.mbc-hubbtn {
-    display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 14px 4px 6px; border-radius: 99px; cursor: pointer;
-    background: var(--SmartThemeBlurTintColor, #23252b); color: var(--SmartThemeBodyColor, #e6e4df); border: 1px solid color-mix(in srgb, var(--mbc-accent, #5aa9a0) 60%, transparent);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, .25); font: inherit; font-size: .85em; transition: transform .15s;
-}
-.mbc-hubbtn .ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--mbc-accent, #5aa9a0); color: #fff; font-size: 1.05em; animation: mbc-breathe 2.6s ease-in-out infinite; }
-@keyframes mbc-breathe { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--mbc-accent, #5aa9a0) 25%, transparent); } }
-.mbc-dock:hover .mbc-hubbtn, .mbc-dock.open .mbc-hubbtn { transform: scale(1.04); }
-.mbc-panel.mbc-pop {
-    position: absolute; right: 0; bottom: 48px; width: min(560px, 86vw); margin: 0; padding: 12px;
-    opacity: 0; visibility: hidden; transform: translateY(8px) scale(.96); transform-origin: bottom right;
-    transition: opacity .18s, transform .18s, visibility 0s .18s; box-shadow: 0 16px 40px rgba(0, 0, 0, .35);
-}
-.mbc-dock:hover .mbc-pop, .mbc-dock.open .mbc-pop { opacity: 1; visibility: visible; transform: none; transition: opacity .18s, transform .18s; }
-.mbc-dock::before { content: ''; position: absolute; right: 0; bottom: 36px; width: min(560px, 86vw); height: 16px; } /* 단추→창 사이 틈에서 닫히지 않게 */
-.mbc-pop .mbc-head { margin-bottom: 4px; }
-.mbc-pop .mbc-ring { height: 296px; --rx: 31%; --ry: 108px; }
-.mbc-pop .mbc-ring.n2, .mbc-pop .mbc-ring.n3, .mbc-pop .mbc-ring.n4 { height: 250px; --ry: 86px; }
-.mbc-pop .mbc-hub { width: 84px; height: 84px; }
-.mbc-pop .mbc-hub b { font-size: 1.4em; }
-.mbc-pop .mbc-opt.ring { width: 198px; padding: 6px 10px 6px 6px; }
-.mbc-pop .mbc-opt.ring .mbc-label { font-size: var(--t-s); }
-.mbc-pop .mbc-opt.mbc-group { width: 118px; }
-.mbc-pop .mbc-detail { margin-top: 4px; }
-
 /* 고리 알약: 성향 이름 줄 + 글 */
 .mbc-ring-txt { flex: 1; min-width: 0; display: grid; gap: 1px; }
 .mbc-ring-k { font-size: calc(.7em * var(--mbc-fs, 1)); font-weight: 700; color: var(--g-act); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -337,5 +310,48 @@ body.mbc-fx-tilt #chat { transform: rotate(calc(.35deg * var(--mbc-k, 1))); }
 .mbc-rr-in { flex: 1; min-width: 0; min-height: 40px; padding: 4px 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--card); color: var(--fg); font: inherit; font-size: var(--t-m); }
 .mbc-go.sm { min-height: 40px; padding: 4px 16px; font-size: var(--t-m); }
 .mbc-go:disabled { opacity: .6; cursor: progress; }
-.mbc-dock.down .mbc-pop { bottom: auto; top: 48px; transform-origin: top right; }
-.mbc-dock.down::before { bottom: auto; top: 36px; }
+
+/* ───── 채팅 옆 「?」 동그라미 → 부채꼴로 촤락 ───── */
+.mbc-panel.mbc-side { position: fixed; width: 0; height: 0; padding: 0; margin: 0; border: 0; background: none; box-shadow: none; z-index: 3000; overflow: visible; }
+.mbc-sidehub {
+    position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); width: 64px; height: 64px; border-radius: 50%; padding: 0; z-index: 3;
+    display: grid; place-content: center; gap: 0; cursor: pointer; color: var(--fg);
+    background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--a) 38%, var(--bg0)), var(--bg0));
+    border: 2px solid color-mix(in srgb, var(--a) 70%, transparent); box-shadow: 0 6px 20px rgba(0, 0, 0, .3);
+    transition: transform .25s cubic-bezier(.2, 1.4, .4, 1), box-shadow .25s;
+    animation: mbc-breathe 2.8s ease-in-out infinite;
+}
+.mbc-sidehub b { font-size: 1.6em; line-height: 1; }
+.mbc-sidehub small { font-size: .7em; color: var(--sub); }
+@keyframes mbc-breathe { 50% { box-shadow: 0 6px 20px rgba(0, 0, 0, .3), 0 0 0 8px color-mix(in srgb, var(--a) 22%, transparent); } }
+.mbc-side.open .mbc-sidehub { transform: translate(-50%, -50%) scale(1.12); animation: none; box-shadow: 0 0 0 6px color-mix(in srgb, var(--a) 25%, transparent), 0 10px 30px rgba(0, 0, 0, .4); }
+.mbc-scrim {
+    position: absolute; left: calc(-1 * (var(--R, 170px) + 170px)); top: calc(-1 * (var(--R, 170px) + 170px));
+    width: calc(2 * (var(--R, 170px) + 170px)); height: calc(2 * (var(--R, 170px) + 170px)); border-radius: 50%;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--bg0) 70%, transparent), transparent);
+    opacity: 0; pointer-events: none; transition: opacity .25s;
+}
+.mbc-side.open .mbc-scrim { opacity: 1; pointer-events: auto; }
+.mbc-side .mbc-fan .mbc-opt.ring {
+    left: 0; top: 0; width: 232px; padding: 6px 12px 6px 6px; border-radius: 99px; animation: none; z-index: 2;
+    transform: translate(-50%, -50%) scale(.2); opacity: 0; pointer-events: none;
+    background: var(--card); box-shadow: 0 6px 18px rgba(0, 0, 0, .3);
+    transition: transform .38s cubic-bezier(.2, 1.35, .4, 1) calc(var(--k) * 30ms), opacity .2s calc(var(--k) * 30ms), border-color .15s;
+}
+.mbc-side .mbc-fan .mbc-opt.ring:hover:not(:disabled) { transform: translate(-50%, -50%) scale(.2); }
+.mbc-side.open .mbc-fan .mbc-opt.ring, .mbc-side.open .mbc-fan .mbc-opt.ring:hover:not(:disabled) { transform: translate(var(--tx), var(--ty)) translate(-100%, -50%); opacity: 1; pointer-events: auto; }
+.mbc-side.open[data-dir="right"] .mbc-fan .mbc-opt.ring, .mbc-side.open[data-dir="right"] .mbc-fan .mbc-opt.ring:hover:not(:disabled) { transform: translate(var(--tx), var(--ty)) translate(0, -50%); }
+.mbc-side .mbc-opt.ring:hover:not(:disabled) { border-color: var(--a); }
+.mbc-side .mbc-opt.ring .mbc-label { font-size: var(--t-s); }
+.mbc-side .mbc-opt.mbc-group { width: 150px; }
+.mbc-side.has-sel .mbc-fan .mbc-opt.ring:not(.sel) { opacity: .45; }
+.mbc-tools { position: absolute; left: 0; top: -44px; transform: translate(-50%, -100%); display: flex; flex-direction: column; gap: 6px; opacity: 0; pointer-events: none; transition: opacity .2s .1s; }
+.mbc-side.open .mbc-tools { opacity: 1; pointer-events: auto; }
+.mbc-tool { width: 34px; height: 34px; padding: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer; font-size: .9em; background: var(--card); color: var(--fg); border: 1px solid var(--line); box-shadow: 0 3px 10px rgba(0, 0, 0, .25); }
+.mbc-tool:hover, .mbc-tool.on { border-color: var(--a); }
+.mbc-tool.heat.s2, .mbc-tool.heat.s3 { border-color: var(--bad); }
+.mbc-sidecard { position: absolute; left: 24px; top: 40px; transform: translateX(-100%); width: 330px; z-index: 4; }
+.mbc-side[data-dir="right"] .mbc-sidecard { left: -24px; transform: none; }
+.mbc-side[data-card-up="1"] .mbc-sidecard { top: auto; bottom: 40px; }
+.mbc-sidecard .mbc-detail, .mbc-sidecard .mbc-reroll { margin: 0; background: var(--bg0); box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+.mbc-sidecard .mbc-reroll { padding: 8px; border-radius: var(--r); border: 1px solid var(--line); }
